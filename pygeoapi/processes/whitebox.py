@@ -244,6 +244,9 @@ def run_list(data: dict) -> dict:
     q = (data.get("search") or "").lower()
     tools = [{"tool": t, "description": d} for t, d in list_tools().items()
              if not q or q in t.lower() or q in d.lower()]
+    # Exact name first, then names starting with / containing the text, then description matches.
+    tools.sort(key=lambda x: (x["tool"].lower() != q, not x["tool"].lower().startswith(q),
+                              q not in x["tool"].lower()))
     return {"count": len(tools), "tools": tools}
 
 

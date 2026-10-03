@@ -22,8 +22,12 @@ metadata:
     terms_of_service: https://creativecommons.org/licenses/by/4.0/
     url: https://${DOMAIN}
   license: { name: CC-BY 4.0, url: https://creativecommons.org/licenses/by/4.0/ }
-  provider: { name: Training, url: https://${DOMAIN} }
-  contact: { name: Admin, email: ${ACME_EMAIL} }
+  provider:
+    name: Training
+    url: https://${DOMAIN}
+  contact:
+    name: Admin
+    email: ${ACME_EMAIL}
 resources:
   zonal-statistics:
     type: process

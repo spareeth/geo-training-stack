@@ -16,7 +16,11 @@ Browser-only GIS for training. Trainees install nothing. Heavy analysis runs on 
 GeoLibre's built-in tools run in the browser. The **Server Analysis** plugin gives trainees the
 same WhiteboxTools toolbox plus zonal statistics, suitability, accessibility and buffer screening,
 running on this server, with a catalogue browser. Results appear on the map. Install it once per
-browser: GeoLibre, Plugins, Install from URL, `https://DOMAIN/plugins/server-analysis/plugin.json`.
+browser (tested in GeoLibre with the prebuilt image):
+1. **Settings > Manage Plugins > Settings** tab, under **Manifest URLs** paste
+   `https://DOMAIN/plugins/server-analysis/plugin.json` and click **Add**.
+2. **Plugins > Server Analysis** to activate it. A **Server Analysis** button appears in the top bar.
+3. **Server Analysis > Open data and analysis panel**.
 
 ## Login
 - Web apps: one shared user/password (Caddy basic auth), from `.env`.
@@ -26,7 +30,9 @@ browser: GeoLibre, Plugins, Install from URL, `https://DOMAIN/plugins/server-ana
 ## Install (Ubuntu 22.04/24.04)
 1. Install Docker Engine and the compose plugin. Point a DNS A record for `DOMAIN` at the server.
    Open only ports 80 and 443.
-2. Clone this repo to `/opt/geo-training-stack`, `cp .env.example .env`, fill it in.
+2. Clone this repo to `/opt/geo-training-stack`, `cp .env.example .env`, fill it in. Put the bcrypt
+   hash in single quotes (`TRAINEE_PASSWORD_HASH='$2a$14$...'`): Docker Compose otherwise treats
+   each `$` as a variable and the login silently breaks.
 3. `docker network create geo`
 4. STAC GIS core:
    ```

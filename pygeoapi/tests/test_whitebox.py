@@ -97,3 +97,14 @@ def test_missing_binary(monkeypatch):
     whitebox.list_tools.cache_clear()
     with pytest.raises(mcda.MCDAError, match="not installed"):
         whitebox.run_list({})
+
+
+def test_search_ranks_exact_name_first(monkeypatch):
+    monkeypatch.setattr(whitebox, "list_tools", lambda: {
+        "AverageFlowpathSlope": "Measures the average slope gradient.",
+        "EdgeDensity": "Density of slope breaks.",
+        "SlopeVsElevationPlot": "Plot of slope against elevation.",
+        "Slope": "Calculates a slope raster from an input DEM.",
+    })
+    names = [t["tool"] for t in whitebox.run_list({"search": "slope"})["tools"]]
+    assert names == ["Slope", "SlopeVsElevationPlot", "AverageFlowpathSlope", "EdgeDensity"]
