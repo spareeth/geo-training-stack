@@ -102,6 +102,9 @@ test("resultLayers for each process", () => {
   const su = core.resultLayers("suitability", { suitability_raster: "s.tif", sites: { features: [{}] } });
   assert.deepEqual(su.map((l) => l.type), ["raster", "vector"]);
   assert.deepEqual(su[0].rescale, [0, 1]);
+  const ac = core.resultLayers("accessibility", { distance_raster: "d.tif", max_distance_m: 900,
+    facilities: { type: "FeatureCollection", features: [{}] } }, "Accessibility");
+  assert.deepEqual(ac.map((l) => [l.type, l.name]), [["raster", "Accessibility distance (m)"], ["vector", "Accessibility facilities"]]);
   assert.equal(core.resultLayers("buffer-screen", { buffer: { type: "Polygon", coordinates: [] } })[0].type, "vector");
 });
 

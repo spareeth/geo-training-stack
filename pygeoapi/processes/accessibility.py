@@ -32,6 +32,17 @@ PROCESS_METADATA = {
 }
 
 
+MAX_FACILITY_POINTS = 2000
+
+
+def facility_points(gdf) -> dict:
+    """The facilities that were measured to, as points, so they can be shown on the map."""
+    pts = gdf.to_crs("EPSG:4326").geometry.representative_point().iloc[:MAX_FACILITY_POINTS]
+    return {"type": "FeatureCollection",
+            "features": [{"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [p.x, p.y]}}
+                         for p in pts]}
+
+
 def run_accessibility(data: dict) -> dict:
     aoi = load_aoi(data["aoi"])
     grid = mcda.build_grid(aoi, float(data.get("resolution", 100)))
@@ -46,7 +57,8 @@ def run_accessibility(data: dict) -> dict:
     mcda.write_cog(path, np.ma.array(dist, mask=~inside), grid)
     out = {"distance_raster": url, "limit_m": limit,
            "max_distance_m": float(dist[inside].max()) if inside.any() else None,
-           "area_beyond_share": float((dist[inside] > limit).mean()) if inside.any() else None}
+           "area_beyond_share": float((dist[inside] > limit).mean()) if inside.any() else None,
+           "facility_count": len(gdf), "facilities": facility_points(gdf)}
     if data.get("population"):
         src = data["population"]
         src = {**src, "counts": True} if isinstance(src, dict) else {"raster": src, "counts": True}

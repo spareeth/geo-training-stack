@@ -91,6 +91,8 @@ def test_accessibility_population(tmp_path):
     assert p["total"] == pytest.approx(1600, rel=0.1)
     assert 0 < p["share_within"] < 0.4
     assert out["area_beyond_share"] > 0.5
+    assert out["facility_count"] == 1
+    assert out["facilities"]["features"][0]["geometry"]["coordinates"] == pytest.approx([55.0, 25.0])
 
 
 def test_buffer_screen_class_shares(landcover, dem):

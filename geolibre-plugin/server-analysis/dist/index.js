@@ -180,6 +180,7 @@ function resultLayers(processId, result, label = processId) {
     if (result.sites?.features?.length) out.push({ type: "vector", name: `${label} best sites`, geojson: result.sites });
   } else if (processId === "accessibility") {
     raster(`${label} distance (m)`, result.distance_raster, result.max_distance_m ? { min: 0, max: result.max_distance_m } : null);
+    if (result.facilities?.features?.length) out.push({ type: "vector", name: `${label} facilities`, geojson: result.facilities });
   } else if (processId === "buffer-screen" && result.buffer) {
     out.push({ type: "vector", name: `${label} buffer`, geojson: featureCollection([{ type: "Feature", properties: {}, geometry: result.buffer }]) });
   } else if (processId === "zonal-statistics" && result.features) {
@@ -191,7 +192,7 @@ function resultLayers(processId, result, label = processId) {
 /** Short text summary of a result for the Jobs list (layers are added to the map separately). */
 function summarise(processId, result) {
   const r = { ...result };
-  for (const k of ["sites", "buffer", "features", "type", "log"]) delete r[k];
+  for (const k of ["sites", "buffer", "features", "facilities", "type", "log"]) delete r[k];
   if (processId === "whitebox") {
     r.outputs = Object.fromEntries(Object.entries(result.outputs || {}).map(([k, v]) =>
       [k, v.type === "text" ? v.content.slice(0, 2000) : v.type === "vector" ? `${v.feature_count} features` : "raster added to map"]));
