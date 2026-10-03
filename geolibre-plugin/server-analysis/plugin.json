@@ -1,0 +1,11 @@
+{
+  "id": "server-analysis",
+  "name": "Server Analysis",
+  "version": "0.1.0",
+  "description": "Browse the course STAC catalogue and run spatial analysis on the server: WhiteboxTools, zonal statistics, suitability, accessibility and buffer screening.",
+  "entry": "dist/index.js",
+  "style": "dist/style.css",
+  "engines": ["maplibre"],
+  "categories": ["analysis", "data"],
+  "author": "Terra, Expo City Dubai"
+}

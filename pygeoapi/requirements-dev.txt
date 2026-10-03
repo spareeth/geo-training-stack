@@ -1,0 +1,7 @@
+pygeoapi
+exactextract
+rasterio
+geopandas
+pystac-client
+pytest
+scipy

@@ -1,0 +1,100 @@
+{
+  "sector": "Nature-based solutions",
+  "process": "suitability",
+  "title": "Ecosystem restoration priority",
+  "question": "Where is degraded land that could be restored, near rivers, on erosion-prone slopes?",
+  "inputs": {
+    "resolution": 100,
+    "threshold": 0.7,
+    "min_area_ha": 10,
+    "top_n": 10,
+    "criteria": [
+      {
+        "name": "Degraded cover (bare, sparse, shrub)",
+        "source": {
+          "collection": "esa-worldcover",
+          "catalog": "planetary-computer",
+          "asset": "map",
+          "categorical": true
+        },
+        "rule": {
+          "type": "classes",
+          "map": {
+            "60": 1,
+            "20": 0.8,
+            "30": 0.6,
+            "40": 0.3
+          }
+        },
+        "weight": 3
+      },
+      {
+        "name": "Erosion risk (moderate slope)",
+        "source": {
+          "collection": "cop-dem-glo-30",
+          "catalog": "earth-search",
+          "asset": "data",
+          "derive": "slope"
+        },
+        "rule": {
+          "type": "thresholds",
+          "breaks": [
+            3,
+            25
+          ],
+          "scores": [
+            0.3,
+            1,
+            0.5
+          ]
+        },
+        "weight": 2
+      },
+      {
+        "name": "Near rivers (riparian buffers)",
+        "source": {
+          "osm": "rivers"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 3000,
+          "direction": "lower"
+        },
+        "weight": 2
+      },
+      {
+        "name": "Rainfall",
+        "source": {
+          "collection": "chirps-annual",
+          "catalog": "local",
+          "asset": "data"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 100,
+          "max": 800,
+          "direction": "higher"
+        },
+        "weight": 1
+      }
+    ],
+    "constraints": [
+      {
+        "source": {
+          "collection": "esa-worldcover",
+          "catalog": "planetary-computer",
+          "asset": "map",
+          "categorical": true
+        },
+        "classes": [
+          10,
+          50,
+          80,
+          95
+        ]
+      }
+    ]
+  },
+  "id": "nbs-restoration"
+}

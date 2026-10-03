@@ -1,0 +1,86 @@
+# Training stack. STAC GIS core runs from its own compose file (see README)
+# and joins the shared "geo" network so Caddy can route to it.
+name: geo-training
+
+networks:
+  geo:
+    name: geo
+    external: true
+
+volumes:
+  caddy_data: {}
+  outputs: {}
+  jupyterhub_data: {}
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    env_file: .env
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - outputs:/srv/outputs:ro
+      - ./geolibre-plugin:/srv/plugins:ro
+    networks: [geo]
+
+  geolibre:
+    image: ghcr.io/opengeos/geolibre:latest
+    restart: unless-stopped
+    environment:
+      GEOLIBRE_SHARE_URL: "off"
+    networks: [geo]
+
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AWS_S3_ENDPOINT: minio:9000
+      AWS_HTTPS: "NO"
+      AWS_VIRTUAL_HOSTING: "FALSE"
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      WORKERS_PER_CORE: "1"
+    volumes:
+      - outputs:/outputs:ro
+    command: ["uvicorn", "titiler.application.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/tiles"]
+    networks: [geo]
+
+  pygeoapi:
+    build: ./pygeoapi
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYGEOAPI_CONFIG: /pygeoapi/local.config.yml
+      PYGEOAPI_OPENAPI: /pygeoapi/local.openapi.yml
+      SCRIPT_NAME: /processes-api
+      OUTPUT_DIR: /outputs
+      OUTPUT_BASE_URL: https://${DOMAIN}/outputs
+      DATA_ROOTS: /data/,/outputs/
+    volumes:
+      - ./data:/data:ro
+      - outputs:/outputs
+    deploy:
+      resources:
+        limits: { cpus: "8", memory: 16g }
+    networks: [geo]
+
+  mcp:
+    build:
+      context: .
+      dockerfile: mcp/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PROCESSES_URL: http://pygeoapi:80
+    networks: [geo]
+
+  jupyterhub:
+    build: ./jupyterhub
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jupyterhub_data:/srv/jupyterhub
+    networks: [geo]

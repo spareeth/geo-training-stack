@@ -1,0 +1,55 @@
+server:
+  bind: { host: 0.0.0.0, port: 80 }
+  url: https://${DOMAIN}/processes-api
+  mimetype: application/json; charset=UTF-8
+  encoding: utf-8
+  language: en-US
+  limits: { default_items: 100, max_items: 10000 }
+  map:
+    url: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    attribution: OpenStreetMap contributors
+  manager:
+    name: TinyDB
+    connection: /tmp/pygeoapi-process-manager.db
+    output_dir: /tmp/
+logging:
+  level: INFO
+metadata:
+  identification:
+    title: Training processing API
+    description: Server-side spatial analysis for training courses
+    keywords: [zonal statistics, raster, vector]
+    terms_of_service: https://creativecommons.org/licenses/by/4.0/
+    url: https://${DOMAIN}
+  license: { name: CC-BY 4.0, url: https://creativecommons.org/licenses/by/4.0/ }
+  provider: { name: Training, url: https://${DOMAIN} }
+  contact: { name: Admin, email: ${ACME_EMAIL} }
+resources:
+  zonal-statistics:
+    type: process
+    processor:
+      name: training_processes.zonal_stats.ZonalStatsProcessor
+  suitability:
+    type: process
+    processor:
+      name: training_processes.suitability.SuitabilityProcessor
+  accessibility:
+    type: process
+    processor:
+      name: training_processes.accessibility.AccessibilityProcessor
+  buffer-screen:
+    type: process
+    processor:
+      name: training_processes.buffer_screen.BufferScreenProcessor
+  whitebox:
+    type: process
+    processor:
+      name: training_processes.whitebox.WhiteboxProcessor
+  whitebox-tools:
+    type: process
+    processor:
+      name: training_processes.whitebox.WhiteboxListProcessor
+  features:
+    type: process
+    processor:
+      name: training_processes.features.FeaturesProcessor

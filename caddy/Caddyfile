@@ -1,0 +1,41 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# JupyterHub has its own login (shared password), so no basic auth here.
+	handle /lab* {
+		reverse_proxy jupyterhub:8000
+	}
+
+	handle {
+		basic_auth {
+			{$TRAINEE_USER} {$TRAINEE_PASSWORD_HASH}
+		}
+
+		handle_path /tiles/* {
+			reverse_proxy titiler:8000
+		}
+		# GeoLibre plugin: install from https://DOMAIN/plugins/server-analysis/plugin.json
+		handle_path /plugins/* {
+			root * /srv/plugins
+			file_server
+		}
+		handle_path /outputs/* {
+			root * /srv/outputs
+			file_server
+		}
+		handle /processes-api* {
+			reverse_proxy pygeoapi:80
+		}
+		handle /stac* {
+			reverse_proxy stac-gis-backend:8000
+		}
+		handle /catalog* {
+			reverse_proxy stac-gis-frontend:80
+		}
+		reverse_proxy geolibre:80
+	}
+}

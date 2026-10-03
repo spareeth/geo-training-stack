@@ -1,0 +1,117 @@
+{
+  "sector": "Education",
+  "process": "suitability",
+  "title": "New school siting",
+  "question": "Where do many people live far from a school, on safe, accessible land?",
+  "inputs": {
+    "resolution": 200,
+    "threshold": 0.7,
+    "min_area_ha": 2,
+    "top_n": 10,
+    "criteria": [
+      {
+        "name": "Far from existing schools",
+        "source": {
+          "osm": "schools"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 1000,
+          "max": 5000,
+          "direction": "higher"
+        },
+        "weight": 4
+      },
+      {
+        "name": "Population density",
+        "source": {
+          "collection": "worldpop",
+          "catalog": "local",
+          "asset": "data",
+          "counts": true
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 200,
+          "direction": "higher"
+        },
+        "weight": 4
+      },
+      {
+        "name": "Close to a road",
+        "source": {
+          "osm": "roads"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 2000,
+          "direction": "lower"
+        },
+        "weight": 2
+      },
+      {
+        "name": "Gentle slope",
+        "source": {
+          "collection": "cop-dem-glo-30",
+          "catalog": "earth-search",
+          "asset": "data",
+          "derive": "slope"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 10,
+          "direction": "lower"
+        },
+        "weight": 1
+      }
+    ],
+    "constraints": [
+      {
+        "source": {
+          "collection": "esa-worldcover",
+          "catalog": "planetary-computer",
+          "asset": "map",
+          "categorical": true
+        },
+        "classes": [
+          80,
+          90,
+          95
+        ]
+      },
+      {
+        "source": {
+          "collection": "jrc-gsw",
+          "catalog": "planetary-computer",
+          "asset": "occurrence"
+        },
+        "op": ">",
+        "value": 10
+      },
+      {
+        "osm": "major_roads",
+        "within_m": 50
+      }
+    ]
+  },
+  "follow_up": {
+    "process": "accessibility",
+    "inputs": {
+      "facilities": {
+        "osm": "schools"
+      },
+      "population": {
+        "collection": "worldpop",
+        "catalog": "local",
+        "asset": "data",
+        "counts": true
+      },
+      "limit_m": 5000,
+      "resolution": 200
+    }
+  },
+  "id": "education-school-siting"
+}

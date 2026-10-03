@@ -1,0 +1,117 @@
+{
+  "sector": "Agriculture",
+  "process": "suitability",
+  "title": "Irrigated agriculture expansion",
+  "question": "Which non-built land is flat, has water nearby and is reachable by road?",
+  "inputs": {
+    "resolution": 100,
+    "threshold": 0.75,
+    "min_area_ha": 20,
+    "top_n": 10,
+    "criteria": [
+      {
+        "name": "Flat land",
+        "source": {
+          "collection": "cop-dem-glo-30",
+          "catalog": "earth-search",
+          "asset": "data",
+          "derive": "slope"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 8,
+          "direction": "lower"
+        },
+        "weight": 3
+      },
+      {
+        "name": "Distance to rivers and canals",
+        "source": {
+          "osm": "rivers"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 5000,
+          "direction": "lower"
+        },
+        "weight": 3
+      },
+      {
+        "name": "Distance to roads (market access)",
+        "source": {
+          "osm": "roads"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 0,
+          "max": 10000,
+          "direction": "lower"
+        },
+        "weight": 2
+      },
+      {
+        "name": "Current land cover",
+        "source": {
+          "collection": "esa-worldcover",
+          "catalog": "planetary-computer",
+          "asset": "map",
+          "categorical": true
+        },
+        "rule": {
+          "type": "classes",
+          "map": {
+            "40": 1,
+            "30": 0.9,
+            "20": 0.7,
+            "60": 0.4
+          }
+        },
+        "weight": 2
+      },
+      {
+        "name": "Rainfall",
+        "source": {
+          "collection": "chirps-annual",
+          "catalog": "local",
+          "asset": "data"
+        },
+        "rule": {
+          "type": "linear",
+          "min": 100,
+          "max": 800,
+          "direction": "higher"
+        },
+        "weight": 1
+      }
+    ],
+    "constraints": [
+      {
+        "source": {
+          "collection": "esa-worldcover",
+          "catalog": "planetary-computer",
+          "asset": "map",
+          "categorical": true
+        },
+        "classes": [
+          50,
+          80,
+          90,
+          95
+        ]
+      },
+      {
+        "source": {
+          "collection": "cop-dem-glo-30",
+          "catalog": "earth-search",
+          "asset": "data",
+          "derive": "slope"
+        },
+        "op": ">",
+        "value": 15
+      }
+    ]
+  },
+  "id": "agriculture-irrigation"
+}

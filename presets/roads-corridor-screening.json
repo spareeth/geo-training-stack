@@ -1,0 +1,99 @@
+{
+  "sector": "Roads and transport",
+  "process": "buffer-screen",
+  "title": "Road corridor environmental and social screening",
+  "question": "What does the proposed alignment cross: forest, cropland, water, flood-prone land, and how many people live along it?",
+  "inputs": {
+    "distance_m": 1000,
+    "resolution": 30,
+    "layers": [
+      {
+        "name": "Land cover (ESA WorldCover)",
+        "collection": "esa-worldcover",
+        "catalog": "planetary-computer",
+        "asset": "map",
+        "categorical": true,
+        "class_names": {
+          "10": "Tree cover",
+          "20": "Shrubland",
+          "30": "Grassland",
+          "40": "Cropland",
+          "50": "Built-up",
+          "60": "Bare / sparse",
+          "70": "Snow and ice",
+          "80": "Water",
+          "90": "Wetland",
+          "95": "Mangroves",
+          "100": "Moss"
+        }
+      },
+      {
+        "name": "Land use 2023 (Impact Observatory)",
+        "collection": "io-lulc-annual-v02",
+        "catalog": "planetary-computer",
+        "asset": "data",
+        "categorical": true,
+        "datetime": "2023",
+        "class_names": {
+          "1": "Water",
+          "2": "Trees",
+          "4": "Flooded vegetation",
+          "5": "Crops",
+          "7": "Built area",
+          "8": "Bare ground",
+          "11": "Rangeland"
+        }
+      },
+      {
+        "name": "Land use 2017 (baseline)",
+        "collection": "io-lulc-annual-v02",
+        "catalog": "planetary-computer",
+        "asset": "data",
+        "categorical": true,
+        "datetime": "2017",
+        "class_names": {
+          "1": "Water",
+          "2": "Trees",
+          "4": "Flooded vegetation",
+          "5": "Crops",
+          "7": "Built area",
+          "8": "Bare ground",
+          "11": "Rangeland"
+        }
+      },
+      {
+        "name": "Surface water occurrence (%), flood proxy",
+        "collection": "jrc-gsw",
+        "catalog": "planetary-computer",
+        "asset": "occurrence",
+        "stats": [
+          "mean",
+          "max"
+        ]
+      },
+      {
+        "name": "Slope (degrees)",
+        "collection": "cop-dem-glo-30",
+        "catalog": "earth-search",
+        "asset": "data",
+        "stats": [
+          "mean",
+          "max"
+        ],
+        "derive": "slope"
+      },
+      {
+        "name": "Population in corridor",
+        "collection": "worldpop",
+        "catalog": "local",
+        "asset": "data",
+        "counts": true,
+        "stats": [
+          "sum"
+        ]
+      }
+    ]
+  },
+  "id": "roads-corridor-screening",
+  "notes": "Compare the 2017 and 2023 land-use shares to see change in trees and crops along the corridor."
+}

@@ -1,0 +1,32 @@
+.sa-root { font: 13px/1.4 system-ui, sans-serif; color: var(--gl-text, #1f2933); position: relative; height: 100%; display: flex; flex-direction: column; }
+.sa-tabs { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid rgba(127,127,127,.3); }
+.sa-tabs button { flex: 1; padding: 6px; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.sa-tabs button.sa-active { background: rgba(37,99,235,.15); font-weight: 600; }
+.sa-body { padding: 8px; overflow-y: auto; flex: 1; }
+.sa-row { display: flex; gap: 6px; align-items: end; }
+.sa-row > * { flex: 1; min-width: 0; }
+.sa-root input[type=text], .sa-root input[type=search], .sa-root input[type=number], .sa-root select {
+  width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid rgba(127,127,127,.45); border-radius: 5px; background: transparent; color: inherit; }
+.sa-root button { padding: 5px 8px; border: 1px solid rgba(127,127,127,.45); border-radius: 5px; background: transparent; color: inherit; cursor: pointer; margin: 2px 0; }
+.sa-root button.sa-primary { background: #2563eb; border-color: #2563eb; color: #fff; width: 100%; margin-top: 8px; padding: 8px; }
+.sa-field { display: block; margin: 6px 0; }
+.sa-field > span { display: block; font-size: 12px; opacity: .8; margin-bottom: 2px; }
+.sa-check { display: inline-flex; gap: 4px; align-items: center; margin: 4px 8px 4px 0; }
+.sa-checks { margin: 6px 0; }
+.sa-card { border: 1px solid rgba(127,127,127,.3); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.sa-list { margin-top: 8px; }
+.sa-coll, .sa-job { border-bottom: 1px solid rgba(127,127,127,.2); padding: 6px 0; }
+.sa-coll summary, .sa-job summary { cursor: pointer; }
+.sa-coll p { margin: 4px 0; opacity: .8; }
+.sa-item { padding: 4px 0 4px 8px; border-left: 2px solid rgba(37,99,235,.4); margin: 4px 0; }
+.sa-item button { margin-right: 4px; font-size: 12px; }
+.sa-tool { display: block; width: 100%; text-align: left; }
+.sa-tools h4, .sa-form h4 { margin: 10px 0 4px; }
+.sa-form { margin-top: 10px; border-top: 1px solid rgba(127,127,127,.3); padding-top: 6px; }
+.sa-muted { opacity: .7; font-size: 12px; }
+.sa-hidden { display: none !important; }
+.sa-root pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; max-height: 300px; overflow: auto; background: rgba(127,127,127,.1); padding: 6px; border-radius: 4px; }
+.sa-job.sa-failed summary { color: #dc2626; }
+.sa-job.sa-done summary { color: #16a34a; }
+.sa-toast { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 8px; border-radius: 6px; background: #1f2933; color: #fff; z-index: 10; }
+.sa-toast.sa-error { background: #b91c1c; }
