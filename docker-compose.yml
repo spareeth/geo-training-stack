@@ -1,5 +1,5 @@
-# Training stack. STAC GIS core runs from its own compose file (see README)
-# and joins the shared "geo" network so Caddy can route to it.
+# Training stack. The course catalogue is a standard STAC API (stac-fastapi-pgstac) over COGs in
+# ./data/catalog. Optional extras (e.g. STAC GIS) can join the shared "geo" network.
 name: geo-training
 
 networks:
@@ -9,6 +9,7 @@ networks:
 
 volumes:
   caddy_data: {}
+  stac_db: {}
   outputs: {}
   jupyterhub_data: {}
 
@@ -37,13 +38,11 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      AWS_S3_ENDPOINT: minio:9000
-      AWS_HTTPS: "NO"
-      AWS_VIRTUAL_HOSTING: "FALSE"
       GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
       WORKERS_PER_CORE: "1"
     volumes:
       - outputs:/outputs:ro
+      - ./data:/data:ro
     command: ["uvicorn", "titiler.application.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/tiles"]
     networks: [geo]
 
@@ -64,6 +63,43 @@ services:
     deploy:
       resources:
         limits: { cpus: "8", memory: 16g }
+    networks: [geo]
+
+  stac-db:
+    image: ghcr.io/stac-utils/pgstac:v0.9.8
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stac
+      POSTGRES_PASSWORD: ${STAC_DB_PASSWORD}
+      POSTGRES_DB: stac
+      PGUSER: stac
+      PGPASSWORD: ${STAC_DB_PASSWORD}
+      PGDATABASE: stac
+    volumes:
+      - stac_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stac -d stac"]
+      interval: 5s
+      retries: 20
+    networks: [geo]
+
+  # Course catalogue. Read-only through Caddy at /stac; writes (scripts/register_cog.py) only via
+  # the localhost-bound port on the server.
+  stac-api:
+    image: ghcr.io/stac-utils/stac-fastapi-pgstac:7.0.0
+    restart: unless-stopped
+    depends_on:
+      stac-db: { condition: service_healthy }
+    environment:
+      PGUSER: stac
+      PGPASSWORD: ${STAC_DB_PASSWORD}
+      PGHOST: stac-db
+      PGPORT: "5432"
+      PGDATABASE: stac
+      ENABLE_TRANSACTIONS_EXTENSIONS: "true"
+      # Served under /stac both publicly (Caddy) and internally, so links match everywhere.
+      ROOT_PATH: /stac
+    ports: ["127.0.0.1:8082:8080"]
     networks: [geo]
 
   mcp:

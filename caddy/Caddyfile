@@ -30,11 +30,17 @@
 		handle /processes-api* {
 			reverse_proxy pygeoapi:80
 		}
-		handle /stac* {
-			reverse_proxy stac-gis-backend:8000
+		# Course catalogue, read-only: writes go through 127.0.0.1:8082 on the server.
+		@stac_write {
+			path /stac*
+			not method GET HEAD OPTIONS
+			not path /stac/search
 		}
-		handle /catalog* {
-			reverse_proxy stac-gis-frontend:80
+		handle @stac_write {
+			respond "Catalogue is read-only" 405
+		}
+		handle /stac* {
+			reverse_proxy stac-api:8080
 		}
 		reverse_proxy geolibre:80
 	}

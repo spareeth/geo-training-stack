@@ -1,4 +1,4 @@
-"""MCP tools for the STAC GIS AI agent: browse sector presets, explain criteria, compute AHP
+"""MCP tools for an AI agent: browse sector presets, explain criteria, compute AHP
 weights, and run the server-side analysis processes.
 
 The model never does the maths. It picks layers and weights with the user, then calls these

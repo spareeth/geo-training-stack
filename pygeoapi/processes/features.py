@@ -1,5 +1,5 @@
 """Return a vector dataset (catalogue ref, server path or URL) as GeoJSON for the map,
-optionally clipped to an area. Lets the browser show data stored in MinIO or on disk."""
+optionally clipped to an area. Lets the browser show data stored on the server."""
 import json
 
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError

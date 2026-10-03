@@ -2,7 +2,7 @@
 
 All analysis runs on the server. Trainees normally use it from GeoLibre through the
 **Server Analysis** plugin (`geolibre-plugin/server-analysis`). JupyterHub, the processes API and
-the STAC GIS AI agent use the same processes.
+an AI agent (via MCP) use the same processes.
 
 ## Processes (`/processes-api/processes/<id>/execution`)
 
@@ -69,7 +69,7 @@ Before a class, run each demo once for the class areas so OSM responses are cach
 
 ## AI agent (MCP)
 `mcp` service, streamable HTTP at `http://mcp:8090/mcp` on the `geo` network. Register it as an
-MCP server in the STAC GIS agent configuration (see the STAC GIS Geo-AI docs for the exact file).
+MCP server in your AI agent's configuration (any MCP client that supports streamable HTTP).
 Tools: `list_presets`, `get_preset`, `search_catalog`, `compute_ahp_weights`, `run_preset`,
 `run_suitability`, `run_accessibility`, `run_buffer_screen`, `zonal_statistics`.
 

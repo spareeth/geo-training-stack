@@ -14,7 +14,7 @@ from .zonal_stats import load_zones, resolve_raster
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/outputs")
 MAX_ITEMS = 200
 
-# Catalogues a criterion may name. "local" is the course STAC GIS catalogue.
+# Catalogues a criterion may name. "local" is the course STAC catalogue.
 CATALOGS = {
     "local": os.environ.get("STAC_API_URL", ""),
     "earth-search": "https://earth-search.aws.element84.com/v1",
@@ -58,8 +58,8 @@ def collection_hrefs(source: dict, grid: mcda.Grid) -> list[str]:
     asset = source.get("asset") or next(iter(items[0].assets))
     hrefs = [i.assets[asset].href for i in items if asset in i.assets]
     if source.get("catalog", "local") != "local":
-        # External catalogues point at public AWS buckets. Read them over HTTPS so the
-        # MinIO S3 settings used for the local catalogue do not apply to them.
+        # External catalogues point at public AWS buckets; read them over HTTPS so no S3
+        # credentials or endpoint settings are needed.
         hrefs = [public_https(h) for h in hrefs]
     return [resolve_raster(h) for h in hrefs]
 

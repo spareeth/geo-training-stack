@@ -5,11 +5,11 @@ Browser-only GIS for training. Trainees install nothing. Heavy analysis runs on 
 | URL | What | Runs where |
 | --- | --- | --- |
 | `https://DOMAIN/` | GeoLibre (map, STAC browser, light analysis) | browser |
-| `https://DOMAIN/catalog/`, `/stac/` | STAC GIS core (catalog, raster pipelines, local AI) | server |
+| `https://DOMAIN/stac/` | Course catalogue: standard STAC API (stac-fastapi-pgstac), read-only | server |
 | `https://DOMAIN/processes-api/` | pygeoapi, OGC API Processes: `whitebox` (all WhiteboxTools tools), `zonal-statistics`, `suitability`, `accessibility`, `buffer-screen`, `features` | server |
 | `https://DOMAIN/plugins/server-analysis/plugin.json` | GeoLibre plugin: Data and Tools panels that run everything above on the server | browser UI |
 | `https://DOMAIN/outputs/` | Result rasters (COG), loadable in GeoLibre | server |
-| `http://mcp:8090/mcp` (internal) | MCP tools for the STAC GIS AI agent | server |
+| `http://mcp:8090/mcp` (internal) | MCP tools for an AI agent (any MCP client) | server |
 | `https://DOMAIN/tiles/` | TiTiler, COG tiles | server |
 | `https://DOMAIN/lab/` | JupyterHub, one container per trainee (2 CPU, 4 GB) | server |
 
@@ -39,22 +39,27 @@ length of a course, and if you must update mid-course, tell trainees to remove a
    hash in single quotes (`TRAINEE_PASSWORD_HASH='$2a$14$...'`): Docker Compose otherwise treats
    each `$` as a variable and the login silently breaks.
 3. `docker network create geo`
-4. STAC GIS core:
-   ```
-   git clone https://codeberg.org/stac-gis/core /opt/stac-gis
-   cd /opt/stac-gis && cp .env.example .env   # set secrets
-   ```
-   Add the external `geo` network to its backend, frontend and minio services (compose override),
-   and name the containers `stac-gis-backend`, `stac-gis-frontend`, `minio`, or edit `caddy/Caddyfile`
-   to match. Then `docker compose up -d --build`.
+4. Set `STAC_DB_PASSWORD` in `.env` (the course catalogue database; any long random string).
 5. Notebook image: `docker build -t geo-training-singleuser:latest jupyterhub/singleuser`
 6. `docker compose up -d --build`
 
 ## Load data
+Rasters go into the course catalogue with one command, run from the repo root on the server. Put
+the source file under `data/` first. Nothing needs installing on the host: it runs in the pygeoapi
+image.
 ```
-python scripts/register_cog.py dem.tif --collection dem --item dem-30m
+docker compose run --rm -v "$PWD/data:/data-rw" -v "$PWD/scripts:/scripts:ro" \
+  --entrypoint /venv/bin/python pygeoapi /scripts/register_cog.py \
+  /data-rw/incoming/dem.tif --collection dem --item dem-30m --title "Elevation 30 m"
 ```
-Vectors: convert to GeoParquet or FlatGeobuf, place in `data/` or MinIO, register in STAC.
+It writes a COG to `data/catalog/<collection>/<item>.tif`, creates the collection on first use and
+registers the item (re-running replaces it). Trainees see it under **Course catalogue** in the
+plugin; processes accept it as `dem/dem-30m/data`.
+
+The catalogue is read-only from outside: Caddy only allows reads and `POST /search`. Writes go to
+`127.0.0.1:8082` on the server, which the script reaches over the internal network.
+
+Vectors: convert to GeoParquet or FlatGeobuf and place them in `data/`; processes read them by path.
 
 ## Zonal statistics (server-side)
 ```
@@ -79,7 +84,7 @@ cd geolibre-plugin/server-analysis && node build.mjs && node --test test/core.te
 ```
 
 ## Licences to check before a public course
-GeoLibre and STAC GIS: read their LICENSE files. pygeoapi (MIT), TiTiler (MIT), WhiteboxTools open core (MIT), exactextract
+GeoLibre: read its LICENSE file. stac-fastapi-pgstac and pgstac (MIT), pygeoapi (MIT), TiTiler (MIT), WhiteboxTools open core (MIT), exactextract
 (Apache-2.0), JupyterHub (BSD-3), Caddy (Apache-2.0), MCP Python SDK (MIT), planetary-computer (MIT),
 scipy (BSD-3). Data: Copernicus DEM (free licence, attribution), ESA WorldCover (CC BY 4.0),
 Impact Observatory LULC (CC BY 4.0), JRC GSW (free, attribution), OSM (ODbL, attribution required),

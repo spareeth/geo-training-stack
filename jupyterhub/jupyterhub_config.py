@@ -25,7 +25,7 @@ c.DockerSpawner.volumes = {
 }
 c.DockerSpawner.environment = {
     k: os.environ.get(k, "") for k in
-    ("STAC_API_URL", "S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+    ("STAC_API_URL",)
 }
 c.DockerSpawner.environment["PROCESSES_URL"] = "http://pygeoapi:80"
 c.DockerSpawner.environment["DOMAIN"] = os.environ.get("DOMAIN", "")
