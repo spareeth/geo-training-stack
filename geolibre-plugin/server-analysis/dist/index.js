@@ -183,7 +183,7 @@ function resultLayers(processId, result, label = processId) {
   } else if (processId === "buffer-screen" && result.buffer) {
     out.push({ type: "vector", name: `${label} buffer`, geojson: featureCollection([{ type: "Feature", properties: {}, geometry: result.buffer }]) });
   } else if (processId === "zonal-statistics" && result.features) {
-    out.push({ type: "vector", name: `${label} statistics`, geojson: result });
+    out.push({ type: "vector", name: `${label} result`, geojson: result });
   }
   return out;
 }
@@ -255,7 +255,7 @@ function createPanel(app) {
   }
 
   function vectorLayers() {
-    return (app.listLayers?.() || []).filter((l) => !/tile|raster|cog|wms|wmts|zarr/i.test(l.type || ""));
+    return (app.listLayers?.() || []).filter((l) => !/tile|xyz|raster|cog|wms|wmts|zarr|image|terrain|3d/i.test(l.type || ""));
   }
 
   function currentView() {

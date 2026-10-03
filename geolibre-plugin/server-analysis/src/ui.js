@@ -57,7 +57,7 @@ function createPanel(app) {
   }
 
   function vectorLayers() {
-    return (app.listLayers?.() || []).filter((l) => !/tile|raster|cog|wms|wmts|zarr/i.test(l.type || ""));
+    return (app.listLayers?.() || []).filter((l) => !/tile|xyz|raster|cog|wms|wmts|zarr|image|terrain|3d/i.test(l.type || ""));
   }
 
   function currentView() {

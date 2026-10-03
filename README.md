@@ -22,6 +22,11 @@ browser (tested in GeoLibre with the prebuilt image):
 2. **Plugins > Server Analysis** to activate it. A **Server Analysis** button appears in the top bar.
 3. **Server Analysis > Open data and analysis panel**.
 
+**Updating the plugin:** GeoLibre pins the plugin's code when it is first trusted. After any change
+to `dist/`, it silently stops loading the plugin (only a console warning) until each browser removes
+the URL under **Settings > Manage Plugins > Settings** and adds it again. Freeze the plugin for the
+length of a course, and if you must update mid-course, tell trainees to remove and re-add it.
+
 ## Login
 - Web apps: one shared user/password (Caddy basic auth), from `.env`.
 - JupyterHub: any username (use your name) plus the shared `JUPYTER_SHARED_PASSWORD`.

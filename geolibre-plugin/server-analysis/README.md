@@ -15,6 +15,10 @@ GeoLibre, Plugins, Install from URL: `https://DOMAIN/plugins/server-analysis/plu
 If the URL install is not offered in your GeoLibre version, use Install from file with
 `server-analysis.zip` (build it with `node build.mjs --zip`).
 
+## Updates
+GeoLibre pins the bundle hash per manifest URL. Any change to `dist/` (version bump or not) makes it
+skip the plugin until the user removes and re-adds the URL. Ship updates between courses.
+
 ## Develop
 Source is in `src/` (`core.js` logic, `ui.js` panel). GeoLibre needs one self-contained file:
 ```
