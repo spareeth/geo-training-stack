@@ -123,6 +123,12 @@ curl -u trainee:PASS -X POST https://DOMAIN/processes-api/processes/zonal-statis
 path/URL. Returns GeoJSON, which can be dropped straight into GeoLibre. Add header
 `Prefer: respond-async` for long jobs. Zones are reprojected to the raster CRS automatically.
 
+## Case studies
+[`docs/CASE_STUDIES.md`](docs/CASE_STUDIES.md): five worked workflows with a (hypothetical) project
+narrative: health access (accessibility), school siting (suitability), road corridor screening
+(buffer screening + Overture buildings), check-dam siting with GeoLibre's own Whitebox tools on the
+server, and a district profile (zonal statistics to CSV).
+
 ## Analysis details and optional examples
 See [docs/ANALYSIS.md](docs/ANALYSIS.md) for the processes, layer sources, scoring rules, AHP and the
 AI agent tools. `presets/` and `examples/sector_showcase.ipynb` hold optional worked examples
