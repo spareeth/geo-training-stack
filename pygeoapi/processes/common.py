@@ -9,7 +9,7 @@ from shapely.geometry import box
 
 from . import mcda
 from .osm import fetch_osm
-from .zonal_stats import load_zones, resolve_raster
+from .zonal_stats import MOSAIC_REF, load_zones, resolve_raster
 
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/outputs")
 MAX_ITEMS = 200
@@ -81,6 +81,11 @@ def read_source(source: dict, grid: mcda.Grid) -> np.ma.MaskedArray:
     """Raster values on the grid from a single raster ref or a mosaic of a STAC collection."""
     band, categorical = int(source.get("band", 1)), bool(source.get("categorical"))
     counts = bool(source.get("counts"))
+    m = MOSAIC_REF.match(str(source.get("raster", "")))
+    if m:
+        # 'collection/*[/asset]' from the course catalogue: every tile over the grid, reprojected
+        # one by one (works even when tiles use different projections).
+        source = {**source, "collection": m.group(1), "asset": m.group(2), "catalog": "local"}
     if "collection" in source:
         out = None
         for href in collection_hrefs(source, grid):
@@ -111,6 +116,10 @@ def criterion_values(source: dict, grid: mcda.Grid) -> np.ma.MaskedArray:
     if "raster" not in source and "collection" not in source:
         raise mcda.MCDAError("each source needs 'raster', 'collection' or 'vector'")
     vals = read_source(source, grid)
+    if source.get("counts"):
+        # Count rasters (population) have no data where nobody lives: that is zero, not unknown,
+        # so those cells must still be scored instead of dropping out as excluded.
+        vals = np.ma.asarray(vals.filled(0))
     if source.get("derive") == "slope":
         dy, dx = np.gradient(vals.filled(np.nan), grid.resolution)
         vals = np.ma.masked_invalid(np.degrees(np.arctan(np.hypot(dx, dy))))

@@ -21,7 +21,7 @@ def _dem(path):
 def test_prepare_clips_to_area_as_cog(ws, tmp_path, monkeypatch):
     src = tmp_path / "dem.tif"
     _dem(src)
-    monkeypatch.setattr(workspace, "resolve_raster", lambda ref: str(src))
+    monkeypatch.setattr(workspace, "resolve_raster", lambda ref, bbox=None: str(src))
     out = workspace.prepare({"raster": "dem/x/data", "aoi": [55.02, 25.05, 55.05, 25.08], "name": "My DEM!"})
     assert out["name"] == "my-dem.tif" and out["geolibre_path"] == "/data/my-dem.tif"
     with rasterio.open(ws / "my-dem.tif") as d:
@@ -34,7 +34,7 @@ def test_prepare_clips_to_area_as_cog(ws, tmp_path, monkeypatch):
 def test_prepare_outside_raster_and_too_large(ws, tmp_path, monkeypatch):
     src = tmp_path / "dem.tif"
     _dem(src)
-    monkeypatch.setattr(workspace, "resolve_raster", lambda ref: str(src))
+    monkeypatch.setattr(workspace, "resolve_raster", lambda ref, bbox=None: str(src))
     from pygeoapi.process.base import ProcessorExecuteError
     with pytest.raises(ProcessorExecuteError, match="does not cover"):
         workspace.prepare({"raster": "x/y", "aoi": [10, 10, 11, 11]})

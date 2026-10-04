@@ -642,6 +642,11 @@ function createPanel(app) {
           const categorical = /class|cover|lulc|landuse|land-use|map$/i.test(`${c.id} ${key}`) && !/fraction|density|tree-cover/i.test(`${c.id} ${key}`);
           await addRaster(name, ref, tileHref, null, categorical ? "tab20" : "viridis",
             { palette: paletteFor(c.id), categorical, unit: /dem|elevation/i.test(c.id) ? "m" : "" });
+          if (c._cat === "local" && !c.id.startsWith("hrsl")) {
+            // Analyses often span several tiles: offer the whole collection, mosaicked over the area.
+            const mosaic = `${c.id}/*${key === "data" ? "" : `/${key}`}`;
+            if (!rasters.some((r) => r.ref === mosaic)) rasters.push({ name: `${c.title || c.id}: all tiles over the area`, ref: mosaic });
+          }
           notify(`Added ${name}`);
         } else {
           await addVector(name, ref);

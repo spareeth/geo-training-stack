@@ -9,6 +9,7 @@ Output: GeoJSON FeatureCollection, zone attributes plus one column per statistic
 """
 import json
 import os
+import re
 
 import geopandas as gpd
 import rasterio
@@ -85,8 +86,49 @@ def catalogue_href(ref: str) -> str:
     return item.assets[asset_key].href
 
 
-def resolve_raster(ref: str) -> str:
-    """Turn a STAC reference, URL or local path into a GDAL-readable href."""
+MOSAIC_REF = re.compile(r"^([A-Za-z0-9_.-]+)/\*(?:/([A-Za-z0-9_.-]+))?$")
+
+
+def gdal_path(href: str) -> str:
+    if href.startswith("s3://"):
+        return "/vsis3/" + href[5:]
+    if href.startswith(("http://", "https://")):
+        return "/vsicurl/" + href
+    return href
+
+
+def mosaic_href(ref: str, bbox) -> str:
+    """'collection/*[/asset]': a GDAL VRT over every catalogue item of the collection that overlaps
+    bbox, so an analysis area spanning several tiles (e.g. 1-degree DEM tiles) reads as one raster."""
+    coll, asset = MOSAIC_REF.match(ref).groups()
+    if bbox is None:
+        raise ProcessorExecuteError(f"{ref} needs an area (current view, drawn shape or zones)")
+    from osgeo import gdal
+    from pystac_client import Client
+
+    items = list(Client.open(os.environ["STAC_API_URL"]).search(collections=[coll], bbox=list(bbox), max_items=200).items())
+    hrefs = [(i.assets.get(asset) if asset else next(iter(i.assets.values()), None)) for i in items]
+    paths = [gdal_path(a.href) for a in hrefs if a is not None]
+    if not paths:
+        raise ProcessorExecuteError(f"no {coll} data covers this area")
+    if len(paths) == 1:
+        return paths[0]
+    import tempfile
+    vrt = tempfile.NamedTemporaryFile(suffix=".vrt", delete=False).name
+    gdal.UseExceptions()
+    try:
+        ds = gdal.BuildVRT(vrt, paths)
+        ds = None  # noqa: F841  (flush to disk)
+    except RuntimeError as e:
+        raise ProcessorExecuteError(f"{coll}: tiles cannot be mosaicked ({e}); pick a single item instead")
+    return vrt
+
+
+def resolve_raster(ref: str, bbox=None) -> str:
+    """Turn a STAC reference, URL or local path into a GDAL-readable href. 'collection/*' is a
+    mosaic of the collection's items over bbox (WGS 84)."""
+    if MOSAIC_REF.match(ref):
+        return mosaic_href(ref, bbox)
     base = os.environ.get("OUTPUT_BASE_URL", "").rstrip("/")
     if base and ref.startswith(base + "/"):
         # Our own earlier output: read it from disk instead of through the auth proxy.
@@ -219,8 +261,8 @@ class ZonalStatsProcessor(BaseProcessor):
     def execute(self, data, outputs=None):
         if "raster" not in data or "zones" not in data:
             raise ProcessorExecuteError("inputs 'raster' and 'zones' are required")
-        href = resolve_raster(data["raster"])
         zones = load_zones(data["zones"])
+        href = resolve_raster(data["raster"], tuple(zones.to_crs(4326).total_bounds))
         result = zonal_stats(href, zones, data.get("stats") or DEFAULT_STATS, int(data.get("band", 1)))
         return "application/geo+json", result
 

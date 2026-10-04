@@ -71,10 +71,10 @@ def prepare(data: dict) -> dict:
         raise ProcessorExecuteError("raster is required")
     if not data.get("aoi"):
         raise ProcessorExecuteError("aoi is required (current view or a drawn shape)")
-    href = resolve_raster(data["raster"])
+    aoi = load_aoi(data["aoi"])
+    href = resolve_raster(data["raster"], tuple(aoi.total_bounds))
     if href.startswith(("http://", "https://")):
         href = "/vsicurl/" + href
-    aoi = load_aoi(data["aoi"])
     name = safe_name(data.get("name") or os.path.splitext(os.path.basename(str(data["raster"])))[0])
     os.makedirs(WORKSPACE, exist_ok=True)
     dst = os.path.join(WORKSPACE, f"{name}.tif")

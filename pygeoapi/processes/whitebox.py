@@ -115,7 +115,7 @@ def classify(ptype) -> tuple[str, object]:
 
 def stage_raster(ref: str, workdir: str, name: str, aoi: gpd.GeoDataFrame | None) -> str:
     """Copy (and clip to the AOI) a raster into the work dir as GeoTIFF."""
-    href = resolve_raster(ref)
+    href = resolve_raster(ref, tuple(aoi.to_crs(4326).total_bounds) if aoi is not None else None)
     out = os.path.join(workdir, f"{name}.tif")
     with rasterio.open(href) as src:
         window = None

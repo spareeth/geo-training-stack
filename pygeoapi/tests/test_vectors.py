@@ -137,3 +137,44 @@ def test_collection_wide_ref_needs_an_area():
 
     with pytest.raises(ProcessorExecuteError, match="give an area"):
         zonal_stats.area_hrefs("overture-buildings", None)
+
+
+def test_mosaic_ref_builds_vrt_over_tiles(monkeypatch, tmp_path):
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    paths = []
+    for i, x0 in enumerate([10.0, 11.0]):
+        p = tmp_path / f"t{i}.tif"
+        with rasterio.open(p, "w", driver="GTiff", width=10, height=10, count=1, dtype="uint8",
+                           crs="EPSG:4326", transform=from_origin(x0, 1.0, 0.1, 0.1)) as d:
+            d.write(np.full((10, 10), i + 1, "uint8"), 1)
+        paths.append(str(p))
+
+    class Asset:
+        def __init__(self, href):
+            self.href = href
+
+    class Item:
+        def __init__(self, href):
+            self.assets = {"data": Asset(href)}
+
+    class Search:
+        def items(self):
+            return [Item(p) for p in paths]
+
+    class FakeClient:
+        @staticmethod
+        def open(url):
+            return type("C", (), {"search": lambda self, **kw: Search()})()
+
+    import pystac_client
+    monkeypatch.setattr(pystac_client, "Client", FakeClient)
+    monkeypatch.setenv("STAC_API_URL", "http://x")
+    vrt = zonal_stats.resolve_raster("dem/*", (10, 0, 12, 1))
+    with rasterio.open(vrt) as d:
+        assert d.width == 20 and set(np.unique(d.read(1))) == {1, 2}
+    assert zonal_stats.MOSAIC_REF.match("dem/*/data") and not zonal_stats.MOSAIC_REF.match("dem/item/data")
+    with pytest.raises(Exception, match="needs an area"):
+        zonal_stats.resolve_raster("dem/*")

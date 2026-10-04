@@ -122,3 +122,15 @@ def test_read_to_grid_and_sum_resampling(tmp_path):
         dst.write(np.ones((40, 40), "float32"), 1)
     total = mcda.read_to_grid(str(path), g, counts=True).sum()
     assert total == pytest.approx(1600, rel=0.1)
+
+
+def test_count_criterion_nodata_is_zero(monkeypatch):
+    import numpy as np
+    from processes import common
+
+    grid = type("G", (), {"shape": (2, 2), "resolution": 100})()
+    monkeypatch.setattr(common, "read_source", lambda s, g: np.ma.array([[5.0, 0], [0, 0]], mask=[[0, 1], [1, 1]]))
+    got = common.criterion_values({"raster": "pop", "counts": True}, grid)
+    assert not np.ma.getmaskarray(got).any() and got.sum() == 5
+    raw = common.criterion_values({"raster": "pop"}, grid)
+    assert np.ma.getmaskarray(raw).sum() == 3
