@@ -67,6 +67,44 @@ collections:
       seasonality: https://storage.googleapis.com/global-surface-water/downloads2021/seasonality/seasonality_{lon}_{lat}v1_4_2021.tif
       recurrence: https://storage.googleapis.com/global-surface-water/downloads2021/recurrence/recurrence_{lon}_{lat}v1_4_2021.tif
 
+  # Copernicus Data Space Ecosystem (CDSE): s3://eodata hrefs, read on the server with the CDSE S3
+  # keys in .env (CDSE_S3_ACCESS_KEY / CDSE_S3_SECRET_KEY).
+  - id: clms-land-cover-10m
+    title: Land cover, Copernicus CLMS 10 m (2020)
+    description: Copernicus Land Monitoring Service global 10 m land cover map (LCFM LCM-10, 2020).
+    keywords: [land cover, categorical, copernicus]
+    license: other
+    kind: stac-mirror
+    source: https://stac.dataspace.copernicus.eu/v1
+    remote_collection: clms_lcm_global_10m_yearly_v1_cog
+    assets: [map]
+    keep_s3: true
+
+  - id: clms-tree-cover-density-10m
+    title: Tree cover density, Copernicus CLMS 10 m (2020, pantropical)
+    description: Percentage tree cover per 10 m pixel (LCFM TCD-10, 2020), tropics and subtropics.
+    keywords: [forest, trees, nbs, copernicus]
+    license: other
+    kind: stac-mirror
+    source: https://stac.dataspace.copernicus.eu/v1
+    remote_collection: clms_tcd_pantropical_10m_yearly_v1_cog
+    assets: [map]
+    keep_s3: true
+
+  - id: clms-land-cover-100m
+    title: Land cover and cover fractions, Copernicus CGLS 100 m (2015-2019)
+    description: Copernicus Global Land Service LC100 discrete classes plus % cover of trees, crops,
+      built-up, grass, shrub, bare, water per 100 m pixel. One global item per year.
+    keywords: [land cover, categorical, cropland, built-up, copernicus]
+    license: other
+    kind: stac-mirror
+    source: https://stac.dataspace.copernicus.eu/v1
+    remote_collection: clms_lc_global_100m_yearly_v3_cog
+    assets: [discrete_classification_map, tree_coverfraction_layer, crops_coverfraction_layer,
+             builtup_coverfraction_layer, grass_coverfraction_layer, shrub_coverfraction_layer,
+             bare_coverfraction_layer, permanentwater_coverfraction_layer, seasonalwater_coverfraction_layer]
+    keep_s3: true
+
   # ---------------- population ----------------
   - id: hrsl-population
     title: Population, Meta High Resolution Settlement Layer 30 m

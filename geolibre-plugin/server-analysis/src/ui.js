@@ -1,6 +1,7 @@
 // Server Analysis panel for GeoLibre. Browsing and analysis requests go to the course server;
 // the browser only draws the results.
 import {
+  allCollections,
   CATALOGS, OSM_LAYERS, PATHS, SERVER_TOOLS, assetKind, assetRefs, bboxFeature, executeProcess,
   featureCollection, rescaleFromStats, resultLayers, summarise, tileTemplate, wbtArgs, wbtFields,
 } from "./core.js";
@@ -188,7 +189,7 @@ function createPanel(app) {
 
     async function loadCollections() {
       try {
-        collections = (await getJson(`${base()}/collections`)).collections || [];
+        collections = await allCollections(getJson, `${base()}/collections`);
         render();
       } catch (e) { list.replaceChildren(`Could not load catalogue: ${e.message}`); }
     }

@@ -3,6 +3,21 @@ import { test } from "node:test";
 
 import * as core from "../src/core.js";
 
+test("assetRefs keeps CDSE s3 hrefs for the server and converts other s3 to https", () => {
+  const s3 = { href: "s3://eodata/CLMS/x/MAP.tif" };
+  assert.deepEqual(core.assetRefs("cdse", "c", "i", "map", s3), { ref: s3.href, tileHref: s3.href });
+  assert.equal(core.assetRefs("earth-search", "c", "i", "d", { href: "s3://b/k.tif" }).ref, "https://b.s3.amazonaws.com/k.tif");
+});
+
+test("allCollections follows next links", async () => {
+  const pages = {
+    "https://a/collections?limit=100": { collections: [{ id: "1" }, { id: "2" }], links: [{ rel: "next", href: "https://a/p2" }] },
+    "https://a/p2": { collections: [{ id: "3" }], links: [{ rel: "next", href: "https://a/p2" }] },
+  };
+  const got = await core.allCollections(async (u) => pages[u], "https://a/collections");
+  assert.deepEqual(got.map((c) => c.id), ["1", "2", "3"]);
+});
+
 test("publicHttps converts s3 to a public bucket URL", () => {
   assert.equal(core.publicHttps("s3://copernicus-dem-30m/a/b.tif"), "https://copernicus-dem-30m.s3.amazonaws.com/a/b.tif");
   assert.equal(core.publicHttps("https://x/y.tif"), "https://x/y.tif");

@@ -153,7 +153,7 @@ def harvest_stac_mirror(c, region):
                 href = a["href"]
                 for rx, rep in rules:
                     href = rx.sub(rep, href)
-                if href.startswith("s3://"):
+                if href.startswith("s3://") and not c.get("keep_s3"):
                     bucket, _, key = href[5:].partition("/")
                     href = f"https://{bucket}.s3.amazonaws.com/{key}"
                 assets[k] = {kk: vv for kk, vv in {**a, "href": href}.items() if not kk.startswith("alternate")}

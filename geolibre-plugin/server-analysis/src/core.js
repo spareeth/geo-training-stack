@@ -6,6 +6,8 @@ export const PATHS = { processes: "/processes-api", stac: "/stac", tiles: "/tile
 export const CATALOGS = {
   local: { label: "Course catalogue", url: null },
   "earth-search": { label: "Earth Search (AWS open data)", url: "https://earth-search.aws.element84.com/v1" },
+  // CDSE files are s3://eodata hrefs that the server reads with its own CDSE keys, so they stay s3://.
+  cdse: { label: "Copernicus Data Space (CDSE)", url: "https://stac.dataspace.copernicus.eu/v1", serverS3: true },
 };
 
 // Tools with hand-made forms. Every WhiteboxTools tool gets a generated form.
@@ -29,6 +31,20 @@ export function publicHttps(href) {
     return `https://${bucket}.s3.amazonaws.com/${key.join("/")}`;
   }
   return href;
+}
+
+/** Every collection of a STAC API, following "next" links (APIs page them, often 10 at a time). */
+export async function allCollections(getJson, url, max = 1000) {
+  const out = [];
+  let next = url.includes("?") ? url : `${url}?limit=100`;
+  const seen = new Set();
+  while (next && !seen.has(next) && out.length < max) {
+    seen.add(next);
+    const page = await getJson(next);
+    out.push(...(page.collections || []));
+    next = (page.links || []).find((l) => l.rel === "next")?.href;
+  }
+  return out;
 }
 
 /** Server results live in /outputs; TiTiler reads them from disk by that path. */
@@ -57,8 +73,8 @@ export function assetKind(asset) {
  */
 export function assetRefs(catalog, collection, itemId, key, asset) {
   if (catalog === "local") return { ref: `${collection}/${itemId}/${key}`, tileHref: asset.href };
-  const https = publicHttps(asset.href);
-  return { ref: https, tileHref: https };
+  const href = CATALOGS[catalog]?.serverS3 ? asset.href : publicHttps(asset.href);
+  return { ref: href, tileHref: href };
 }
 
 export function tileTemplate(href, { rescale, colormap = "viridis", bidx } = {}) {

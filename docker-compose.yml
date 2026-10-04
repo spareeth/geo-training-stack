@@ -40,6 +40,14 @@ services:
     env_file: .env
     environment:
       GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      <<: &cdse-s3
+        # Copernicus Data Space Ecosystem (s3://eodata/...). Only CDSE assets use s3:// hrefs;
+        # public AWS data is read over https, so these settings do not affect it.
+        AWS_ACCESS_KEY_ID: ${CDSE_S3_ACCESS_KEY:-}
+        AWS_SECRET_ACCESS_KEY: ${CDSE_S3_SECRET_KEY:-}
+        AWS_S3_ENDPOINT: eodata.dataspace.copernicus.eu
+        AWS_VIRTUAL_HOSTING: "FALSE"
+        AWS_HTTPS: "YES"
       WORKERS_PER_CORE: "1"
     volumes:
       - outputs:/outputs:ro
@@ -58,6 +66,7 @@ services:
       OUTPUT_DIR: /outputs
       OUTPUT_BASE_URL: https://${DOMAIN}/outputs
       DATA_ROOTS: /data/,/outputs/
+      <<: *cdse-s3
     volumes:
       - ./data:/data:ro
       - outputs:/outputs
