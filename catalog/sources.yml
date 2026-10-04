@@ -1,0 +1,115 @@
+# Course catalogue sources. scripts/harvest_catalog.py reads this file and registers metadata only:
+# every asset points at public cloud storage (AWS, Google Cloud, HDX/HOT on S3, GitHub), nothing is
+# copied. Re-run the harvest to pick up new data; existing items are replaced.
+#
+# kinds:
+#   stac-mirror   copy items from another STAC API that intersect the countries; optional href rewrites
+#                 (regex -> replacement) point assets at unsigned public copies
+#   tile-grid     generate items for a regular global tile grid (url template per tile)
+#   global        one item per entry, covering all countries (e.g. a global VRT)
+#   geoboundaries one item per country and admin level (geoBoundaries API)
+#   hdx-hot       one item per country for a HOT OpenStreetMap export theme (HDX), GeoPackage assets
+#   hdx-csv       one item per country from an HDX dataset of per-country CSV point files
+
+# IsDB member countries (ISO 3166-1 alpha-3).
+countries: [AFG, ALB, ARE, AZE, BEN, BFA, BGD, BHR, BRN, CIV, CMR, COM, DJI, DZA, EGY, GAB, GIN, GMB,
+            GNB, GUY, IDN, IRN, IRQ, JOR, KAZ, KGZ, KWT, LBN, LBY, MAR, MDV, MLI, MOZ, MRT, MYS, NER,
+            NGA, OMN, PAK, PSE, QAT, SAU, SDN, SEN, SLE, SOM, SUR, SYR, TCD, TGO, TJK, TKM, TUN, TUR,
+            UGA, UZB, YEM]
+
+collections:
+  # ---------------- terrain ----------------
+  - id: cop-dem-glo-30
+    title: Elevation, Copernicus DEM 30 m
+    description: Copernicus GLO-30 digital surface model (2021). Heights in metres.
+    keywords: [terrain, elevation, dem]
+    license: proprietary
+    kind: stac-mirror
+    source: https://earth-search.aws.element84.com/v1
+    remote_collection: cop-dem-glo-30
+    assets: [data]
+
+  # ---------------- land cover / water ----------------
+  - id: esa-worldcover
+    title: Land cover, ESA WorldCover 10 m (2020, 2021)
+    description: ESA WorldCover 11-class land cover. Class codes 10 tree cover ... 100 moss/lichen.
+    keywords: [land cover, categorical]
+    license: CC-BY-4.0
+    kind: stac-mirror
+    source: https://planetarycomputer.microsoft.com/api/stac/v1
+    remote_collection: esa-worldcover
+    assets: [map]
+    rewrite:
+      - ['^https://ai4edataeuwest\.blob\.core\.windows\.net/esa-worldcover/', 'https://esa-worldcover.s3.eu-central-1.amazonaws.com/']
+
+  - id: io-lulc-annual
+    title: Land use / land cover, Impact Observatory 10 m (annual 2017-2023)
+    description: Esri / Impact Observatory 9-class annual land use and land cover from Sentinel-2.
+    keywords: [land cover, land use, categorical, change]
+    license: CC-BY-4.0
+    kind: stac-mirror
+    source: https://planetarycomputer.microsoft.com/api/stac/v1
+    remote_collection: io-lulc-annual-v02
+    assets: [data]
+    rewrite:
+      - ['^https://ai4edataeuwest\.blob\.core\.windows\.net/io-lulc/io-annual-lulc-v02/(\w+)_(\d{4})0101-\d{8}\.tif$', 'https://io-10m-annual-lulc.s3.amazonaws.com/\1_\2.tif']
+
+  - id: jrc-surface-water
+    title: Surface water, JRC Global Surface Water 30 m (1984-2021)
+    description: Water occurrence (% of time water was present), seasonality (months per year) and recurrence.
+    keywords: [water, hydrology]
+    license: CC-BY-4.0
+    kind: tile-grid
+    tile_degrees: 10
+    # Tiles are named by their north-west corner, e.g. 50E_30N.
+    assets:
+      occurrence: https://storage.googleapis.com/global-surface-water/downloads2021/occurrence/occurrence_{lon}_{lat}v1_4_2021.tif
+      seasonality: https://storage.googleapis.com/global-surface-water/downloads2021/seasonality/seasonality_{lon}_{lat}v1_4_2021.tif
+      recurrence: https://storage.googleapis.com/global-surface-water/downloads2021/recurrence/recurrence_{lon}_{lat}v1_4_2021.tif
+
+  # ---------------- population ----------------
+  - id: hrsl-population
+    title: Population, Meta High Resolution Settlement Layer 30 m
+    description: People per 30 m cell, total and by group (women, men, children under five, youth, elderly,
+      women of reproductive age). Use as a count raster (sum) in accessibility and zonal statistics.
+    keywords: [population, demographics, counts]
+    license: CC-BY-4.0
+    kind: global
+    items:
+      - {id: general, title: Total population}
+      - {id: women, title: Women}
+      - {id: men, title: Men}
+      - {id: children_under_five, title: Children under five}
+      - {id: youth_15_24, title: Youth 15-24}
+      - {id: elderly_60_plus, title: Elderly 60+}
+      - {id: women_of_reproductive_age_15_49, title: Women of reproductive age 15-49}
+    asset: https://dataforgood-fb-data.s3.amazonaws.com/hrsl-cogs/hrsl_{id}/hrsl_{id}-latest.vrt
+
+  # ---------------- socio-economic ----------------
+  - id: relative-wealth-index
+    title: Relative Wealth Index (Meta, 2.4 km points)
+    description: Relative wealth estimate per ~2.4 km cell (higher is wealthier, within-country comparison).
+    keywords: [poverty, wealth, socio-economic]
+    license: CC-BY-NC-4.0
+    kind: hdx-csv
+    dataset: relative-wealth-index
+
+  # ---------------- administrative boundaries ----------------
+  - id: admin-boundaries
+    title: Administrative boundaries (geoBoundaries ADM0-ADM2)
+    description: Country, first and second level administrative units, geoBoundaries gbOpen release.
+    keywords: [boundaries, admin, zones]
+    license: CC-BY-4.0
+    kind: geoboundaries
+    levels: [ADM0, ADM1, ADM2]
+
+  # ---------------- OpenStreetMap themes (HOT exports on HDX, refreshed by HOT) ----------------
+  - {id: osm-health-facilities, title: 'Health facilities (OpenStreetMap)', theme: health_facilities, keywords: [health], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-education-facilities, title: 'Schools and education facilities (OpenStreetMap)', theme: education_facilities, keywords: [education, schools], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-roads, title: 'Roads (OpenStreetMap)', theme: roads, keywords: [transport, roads], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-buildings, title: 'Buildings (OpenStreetMap)', theme: buildings, keywords: [buildings], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-waterways, title: 'Rivers and waterways (OpenStreetMap)', theme: waterways, keywords: [water, rivers], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-populated-places, title: 'Populated places (OpenStreetMap)', theme: populated_places, keywords: [settlements], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-financial-services, title: 'Banks and financial services (OpenStreetMap)', theme: financial_services, keywords: [finance, markets], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-points-of-interest, title: 'Points of interest (OpenStreetMap)', theme: points_of_interest, keywords: [markets, utilities, poi], kind: hdx-hot, license: ODbL-1.0}
+  - {id: osm-transport-hubs, title: 'Airports, sea ports and railways (OpenStreetMap)', themes: [airports, sea_ports, railways], keywords: [transport], kind: hdx-hot, license: ODbL-1.0}

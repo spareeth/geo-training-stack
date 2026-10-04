@@ -25,11 +25,12 @@ PROCESS_METADATA = {
 
 
 def run_features(data: dict) -> dict:
-    gdf = load_zones(data["source"])
+    aoi = load_aoi(data["aoi"]) if data.get("aoi") else None
+    gdf = load_zones(data["source"], bbox=aoi.total_bounds if aoi is not None else None)
     if gdf.crs is not None:
         gdf = gdf.to_crs(4326)
-    if data.get("aoi"):
-        gdf = gdf.clip(load_aoi(data["aoi"]))
+    if aoi is not None:
+        gdf = gdf.clip(aoi)
     if len(gdf) > MAX_FEATURES:
         raise mcda.MCDAError(f"{len(gdf)} features; zoom in or draw an area to clip (limit {MAX_FEATURES})")
     return json.loads(gdf.to_json(drop_id=True))

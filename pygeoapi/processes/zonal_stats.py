@@ -53,6 +53,24 @@ PROCESS_METADATA = {
 }
 
 
+def is_catalogue_ref(ref: str) -> bool:
+    return not ref.startswith(("/", "s3://", "http://", "https://", "{")) and len(ref.split("/")) in (2, 3)
+
+
+def catalogue_href(ref: str) -> str:
+    """Asset href for a course catalogue reference "collection/item[/asset]"."""
+    parts = ref.split("/")
+    from pystac_client import Client
+
+    item = Client.open(os.environ["STAC_API_URL"]).get_collection(parts[0]).get_item(parts[1])
+    if item is None:
+        raise ProcessorExecuteError(f"STAC item not found: {ref}")
+    asset_key = parts[2] if len(parts) == 3 else next(iter(item.assets))
+    if asset_key not in item.assets:
+        raise ProcessorExecuteError(f"{ref}: no asset {asset_key!r} (has {', '.join(item.assets)})")
+    return item.assets[asset_key].href
+
+
 def resolve_raster(ref: str) -> str:
     """Turn a STAC reference, URL or local path into a GDAL-readable href."""
     base = os.environ.get("OUTPUT_BASE_URL", "").rstrip("/")
@@ -65,34 +83,85 @@ def resolve_raster(ref: str) -> str:
         if not is_local_allowed(ref):
             raise ProcessorExecuteError("local paths must be under " + ", ".join(DATA_ROOTS))
         return ref
-    parts = ref.split("/")
-    if len(parts) not in (2, 3):
+    if not is_catalogue_ref(ref):
         raise ProcessorExecuteError("raster must be collection/item[/asset], a URL, or a local data path")
-    from pystac_client import Client
-
-    item = Client.open(os.environ["STAC_API_URL"]).get_collection(parts[0]).get_item(parts[1])
-    if item is None:
-        raise ProcessorExecuteError(f"STAC item not found: {ref}")
-    asset_key = parts[2] if len(parts) == 3 else next(iter(item.assets))
-    href = item.assets[asset_key].href
+    href = catalogue_href(ref)
     return "/vsis3/" + href[5:] if href.startswith("s3://") else href
 
 
-def load_zones(zones) -> gpd.GeoDataFrame:
+def vector_path(href: str) -> tuple[str, dict]:
+    """GDAL path and open options for a vector href. "x.zip#member.gpkg" reads one file inside a
+    (remote) zip; remote files use ranged reads so only the needed part is downloaded; CSVs with
+    latitude/longitude columns open as points."""
+    member = None
+    if "#" in href:
+        href, member = href.split("#", 1)
+    remote = href.startswith(("http://", "https://"))
+    path = f"/vsicurl/{href}" if remote else href
+    if href.lower().endswith(".zip"):
+        path = f"/vsizip/{path}" + (f"/{member}" if member else "")
+    opts = {}
+    if href.lower().endswith(".csv"):
+        opts = {"X_POSSIBLE_NAMES": "longitude,lon,x", "Y_POSSIBLE_NAMES": "latitude,lat,y",
+                "KEEP_GEOM_COLUMNS": "NO", "AUTODETECT_TYPE": "YES"}
+    return path, opts
+
+
+def read_vector(href: str, bbox=None) -> gpd.GeoDataFrame:
+    """Read a vector href, only the part inside bbox (WGS 84) when given."""
+    import pyogrio
+
+    from .vector_cache import local_copy
+
+    if href.startswith(("http://", "https://")):
+        # Remote vector files are read from a local copy (see vector_cache).
+        url, _, member = href.partition("#")
+        try:
+            href = local_copy(url, member or None)
+        except Exception as e:
+            raise ProcessorExecuteError(f"could not download {url}: {e}")
+    path, opts = vector_path(href)
+    try:
+        info = pyogrio.read_info(path, **opts)
+        kw = {}
+        if bbox is not None:
+            crs = info.get("crs")
+            if crs and crs.upper() not in ("EPSG:4326", "OGC:CRS84"):
+                from pyproj import Transformer
+                bbox = Transformer.from_crs(4326, crs, always_xy=True).transform_bounds(*bbox)
+            kw["bbox"] = tuple(bbox)
+        gdf = pyogrio.read_dataframe(path, max_features=MAX_ZONES + 1, **kw, **opts)
+    except (pyogrio.errors.DataSourceError, pyogrio.errors.DataLayerError) as e:
+        raise ProcessorExecuteError(f"could not read {href}: {e}")
+    if gdf.crs is None and opts:
+        gdf = gdf.set_crs(4326)
+    return gdf
+
+
+def load_zones(zones, bbox=None) -> gpd.GeoDataFrame:
+    """Vector input as a GeoDataFrame: inline GeoJSON, a catalogue ref, a URL or an allowed path.
+    bbox (WGS 84) limits reading to an area, which matters for country-wide files."""
     if isinstance(zones, dict):
         if not zones.get("features"):
             raise ProcessorExecuteError("zones contain no features")
         gdf = gpd.GeoDataFrame.from_features(zones["features"], crs="EPSG:4326")
     elif isinstance(zones, str) and zones.lstrip().startswith("{"):
-        return load_zones(json.loads(zones))
-    elif isinstance(zones, str) and (zones.startswith(("http://", "https://")) or is_local_allowed(zones)):
-        gdf = gpd.read_file(zones)
+        return load_zones(json.loads(zones), bbox)
+    elif isinstance(zones, str) and zones.startswith(("http://", "https://")):
+        gdf = read_vector(zones, bbox)
+    elif isinstance(zones, str) and zones.startswith("/"):
+        if not is_local_allowed(zones.split("#", 1)[0]):
+            raise ProcessorExecuteError("local paths must be under " + ", ".join(DATA_ROOTS))
+        gdf = read_vector(zones, bbox)
+    elif isinstance(zones, str) and is_catalogue_ref(zones):
+        gdf = read_vector(catalogue_href(zones), bbox)
     else:
-        raise ProcessorExecuteError("zones must be GeoJSON, a URL, or a path under " + ", ".join(DATA_ROOTS))
+        raise ProcessorExecuteError("zones must be GeoJSON, a catalogue ref (collection/item[/asset]), a URL, "
+                                    "or a path under " + ", ".join(DATA_ROOTS))
     if gdf.empty:
         raise ProcessorExecuteError("zones contain no features")
     if len(gdf) > MAX_ZONES:
-        raise ProcessorExecuteError(f"too many zones ({len(gdf)}), limit is {MAX_ZONES}")
+        raise ProcessorExecuteError(f"too many features (over {MAX_ZONES}); zoom in or draw a smaller area")
     return gdf
 
 

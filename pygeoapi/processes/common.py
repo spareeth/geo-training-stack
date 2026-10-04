@@ -37,6 +37,12 @@ def grid_bbox_wgs84(grid: mcda.Grid) -> tuple:
     return Transformer.from_crs(grid.crs, "EPSG:4326", always_xy=True).transform_bounds(minx, miny, maxx, maxy)
 
 
+def padded_bbox_wgs84(grid: mcda.Grid, pad_deg: float = 0.2) -> tuple:
+    """Grid bbox plus ~20 km, so distance inputs include features just outside the area."""
+    w, s_, e, n = grid_bbox_wgs84(grid)
+    return (w - pad_deg, max(s_ - pad_deg, -90), e + pad_deg, min(n + pad_deg, 90))
+
+
 def collection_hrefs(source: dict, grid: mcda.Grid) -> list[str]:
     """Asset hrefs of every item in a STAC collection that touches the grid."""
     from pystac_client import Client
@@ -101,7 +107,7 @@ def criterion_values(source: dict, grid: mcda.Grid) -> np.ma.MaskedArray:
     if "vector" in source:
         if source.get("derive", "distance") != "distance":
             raise mcda.MCDAError("vector sources support derive: distance only")
-        return np.ma.asarray(mcda.distance_to_features(load_zones(source["vector"]), grid))
+        return np.ma.asarray(mcda.distance_to_features(load_zones(source["vector"], padded_bbox_wgs84(grid)), grid))
     if "raster" not in source and "collection" not in source:
         raise mcda.MCDAError("each source needs 'raster', 'collection' or 'vector'")
     vals = read_source(source, grid)
@@ -130,7 +136,7 @@ def constraint_mask(c: dict, grid: mcda.Grid) -> np.ndarray:
             return np.zeros(grid.shape, bool)
         return mcda.distance_to_features(gdf, grid) <= float(c["within_m"])
     if "vector" in c and "source" not in c:
-        gdf = load_zones(c["vector"])
+        gdf = load_zones(c["vector"], padded_bbox_wgs84(grid))
         if "within_m" in c:
             return mcda.distance_to_features(gdf, grid) <= float(c["within_m"])
         return mcda.aoi_mask(gdf, grid)

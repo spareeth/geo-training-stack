@@ -3,7 +3,7 @@ import numpy as np
 from pygeoapi.process.base import BaseProcessor, ProcessorExecuteError
 
 from . import mcda
-from .common import grid_bbox_wgs84, load_aoi, new_output, read_source
+from .common import grid_bbox_wgs84, padded_bbox_wgs84, load_aoi, new_output, read_source
 from .osm import fetch_osm
 from .zonal_stats import load_zones
 
@@ -49,7 +49,7 @@ def run_accessibility(data: dict) -> dict:
     inside = mcda.aoi_mask(aoi, grid)
     fac = data["facilities"]
     gdf = fetch_osm(fac["osm"], grid_bbox_wgs84(grid)) if isinstance(fac, dict) and "osm" in fac \
-        else load_zones(fac)
+        else load_zones(fac, padded_bbox_wgs84(grid))
     dist = mcda.distance_to_features(gdf, grid)
     limit = float(data.get("limit_m", 5000))
 
