@@ -9,6 +9,26 @@ test("assetRefs keeps CDSE s3 hrefs for the server and converts other s3 to http
   assert.equal(core.assetRefs("earth-search", "c", "i", "d", { href: "s3://b/k.tif" }).ref, "https://b.s3.amazonaws.com/k.tif");
 });
 
+test("collectionKind uses the catalogue label, then asset types, then keywords", () => {
+  assert.equal(core.collectionKind({ id: "x", "geotraining:kind": "vector" }), "vector");
+  assert.equal(core.collectionKind({ id: "s2", item_assets: { b04: { type: "image/tiff; application=geotiff" } } }), "raster");
+  assert.equal(core.collectionKind({ id: "fp", item_assets: { d: { type: "application/x-parquet" } } }), "vector");
+  assert.equal(core.collectionKind({ id: "ms-buildings" }), "vector");
+  assert.equal(core.collectionKind({ id: "sentinel-2-l2a" }), "raster");
+});
+
+test("matchesQuery needs every word", () => {
+  const c = { id: "osm-roads", title: "Roads (OpenStreetMap)", keywords: ["transport"] };
+  assert.ok(core.matchesQuery(c, "roads transport"));
+  assert.ok(core.matchesQuery(c, ""));
+  assert.ok(!core.matchesQuery(c, "roads population"));
+});
+
+test("assetKind treats CSV points and zipped GeoPackages as vector", () => {
+  assert.equal(core.assetKind({ href: "https://h/sen_rwi.csv", type: "text/csv" }), "vector");
+  assert.equal(core.assetKind({ href: "https://h/x_gpkg.zip#roads.gpkg", type: "application/geopackage+sqlite3" }), "vector");
+});
+
 test("allCollections follows next links", async () => {
   const pages = {
     "https://a/collections?limit=100": { collections: [{ id: "1" }, { id: "2" }], links: [{ rel: "next", href: "https://a/p2" }] },

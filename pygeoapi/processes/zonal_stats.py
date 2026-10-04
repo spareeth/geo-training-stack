@@ -57,6 +57,20 @@ def is_catalogue_ref(ref: str) -> bool:
     return not ref.startswith(("/", "s3://", "http://", "https://", "{")) and len(ref.split("/")) in (2, 3)
 
 
+def area_hrefs(collection: str, bbox) -> list[str]:
+    """Asset hrefs of every catalogue item in a collection that overlaps bbox: for collections
+    split into many files (e.g. Overture GeoParquet), referenced as "collection/*"."""
+    if bbox is None:
+        raise ProcessorExecuteError(f"{collection}/* covers large areas: give an area (current view or drawn shape)")
+    from pystac_client import Client
+
+    items = Client.open(os.environ["STAC_API_URL"]).search(collections=[collection], bbox=list(bbox), max_items=50)
+    hrefs = [next(iter(i.assets.values())).href for i in items.items() if i.assets]
+    if not hrefs:
+        raise ProcessorExecuteError(f"no {collection} data covers this area")
+    return hrefs
+
+
 def catalogue_href(ref: str) -> str:
     """Asset href for a course catalogue reference "collection/item[/asset]"."""
     parts = ref.split("/")
@@ -113,6 +127,12 @@ def read_vector(href: str, bbox=None) -> gpd.GeoDataFrame:
 
     from .vector_cache import local_copy
 
+    if href.split("?")[0].lower().endswith(".parquet"):
+        from .geoparquet import read_geoparquet
+        try:
+            return read_geoparquet([href], bbox, max_features=MAX_ZONES)
+        except (OSError, ValueError) as e:
+            raise ProcessorExecuteError(f"could not read {href}: {e}")
     if href.startswith(("http://", "https://")):
         # Remote vector files are read from a local copy (see vector_cache).
         url, _, member = href.partition("#")
@@ -153,6 +173,14 @@ def load_zones(zones, bbox=None) -> gpd.GeoDataFrame:
         if not is_local_allowed(zones.split("#", 1)[0]):
             raise ProcessorExecuteError("local paths must be under " + ", ".join(DATA_ROOTS))
         gdf = read_vector(zones, bbox)
+    elif isinstance(zones, str) and zones.endswith("/*") and is_catalogue_ref(zones):
+        hrefs = area_hrefs(zones[:-2], bbox)
+        if all(h.split("?")[0].lower().endswith(".parquet") for h in hrefs):
+            from .geoparquet import read_geoparquet
+            gdf = read_geoparquet(hrefs, bbox, max_features=MAX_ZONES)
+        else:
+            import pandas as pd
+            gdf = gpd.GeoDataFrame(pd.concat([read_vector(h, bbox).to_crs(4326) for h in hrefs], ignore_index=True), crs=4326)
     elif isinstance(zones, str) and is_catalogue_ref(zones):
         gdf = read_vector(catalogue_href(zones), bbox)
     else:

@@ -1,7 +1,7 @@
 // Server Analysis panel for GeoLibre. Browsing and analysis requests go to the course server;
 // the browser only draws the results.
 import {
-  allCollections,
+  allCollections, collectionKind, matchesQuery,
   CATALOGS, OSM_LAYERS, PATHS, SERVER_TOOLS, assetKind, assetRefs, bboxFeature, executeProcess,
   featureCollection, rescaleFromStats, resultLayers, summarise, tileTemplate, wbtArgs, wbtFields,
 } from "./core.js";
@@ -170,28 +170,66 @@ function createPanel(app) {
   // ---------- Data tab ----------
 
   function dataView() {
+    const MAX_SHOWN = 150;
     const list = el("div", { class: "sa-list" }, "Loading catalogue...");
-    const search = el("input", { type: "search", placeholder: "Search datasets" });
-    const catSel = el("select", {}, Object.entries(CATALOGS).map(([k, c]) => el("option", { value: k }, c.label)));
+    const search = el("input", { type: "search", class: "sa-search", placeholder: "Search data: buildings, land cover, population, schools..." });
+    const catSel = el("select", { title: "Catalogue" },
+      el("option", { value: "all" }, "All catalogues"),
+      Object.entries(CATALOGS).map(([k, c]) => el("option", { value: k }, c.label)));
     catSel.value = state.catalog;
-    let collections = [];
-    const base = () => CATALOGS[state.catalog].url || PATHS.stac;
+    const kindTabs = {};
+    const kindRow = el("div", { class: "sa-kinds", role: "tablist" }, ["all", "raster", "vector"].map((k) => {
+      kindTabs[k] = el("button", { type: "button", role: "tab", onclick: () => { state.kind = k; render(); } }, k);
+      return kindTabs[k];
+    }));
+    state.kind = state.kind || "all";
+    const loaded = {}; // catalogue key -> collections (each tagged with _cat)
+    const base = (cat) => CATALOGS[cat].url || PATHS.stac;
+    const catalogsShown = () => (catSel.value === "all" ? Object.keys(CATALOGS) : [catSel.value]);
 
     function render() {
-      const q = search.value.toLowerCase();
-      list.replaceChildren(...collections
-        .filter((c) => !q || `${c.id} ${c.title || ""} ${c.description || ""} ${(c.keywords || []).join(" ")}`.toLowerCase().includes(q))
-        .map((c) => el("details", { class: "sa-coll" },
-          el("summary", {}, el("b", {}, c.title || c.id), el("small", {}, ` ${c.id}`)),
+      const pool = catalogsShown().flatMap((k) => loaded[k] || []);
+      const byQuery = pool.filter((c) => matchesQuery(c, search.value));
+      const counts = { all: byQuery.length, raster: 0, vector: 0 };
+      byQuery.forEach((c) => { counts[collectionKind(c)] += 1; });
+      for (const [k, b] of Object.entries(kindTabs)) {
+        b.textContent = `${k === "all" ? "All" : k[0].toUpperCase() + k.slice(1)} (${counts[k]})`;
+        b.classList.toggle("sa-active", state.kind === k);
+        b.setAttribute("aria-selected", String(state.kind === k));
+      }
+      const shown = byQuery.filter((c) => state.kind === "all" || collectionKind(c) === state.kind);
+      const pending = catalogsShown().filter((k) => !loaded[k]);
+      if (!shown.length) {
+        list.replaceChildren(pending.length ? "Loading catalogue..." : "No data matches. Try other words or another catalogue.");
+        return;
+      }
+      const footer = [
+        shown.length > MAX_SHOWN ? el("p", { class: "sa-muted" }, `${shown.length - MAX_SHOWN} more: refine the search.`) : null,
+        pending.length ? el("p", { class: "sa-muted" }, `Still loading: ${pending.map((k) => CATALOGS[k].label).join(", ")}`) : null,
+      ].filter(Boolean);
+      list.replaceChildren(...shown.slice(0, MAX_SHOWN).map((c) => {
+        const kind = collectionKind(c);
+        const action = c["geotraining:partitioned"]
+          ? el("button", { type: "button", onclick: (ev) => addArea(c, ev.target.parentElement) }, "Add for current view")
+          : el("button", { type: "button", onclick: (ev) => loadItems(c, ev.target.parentElement) }, "Show items in current view");
+        return el("details", { class: "sa-coll" },
+          el("summary", {}, el("span", { class: `sa-badge sa-${kind}` }, kind === "raster" ? "Raster" : "Vector"),
+            catSel.value === "all" ? el("span", { class: "sa-badge sa-src" }, CATALOGS[c._cat].short || CATALOGS[c._cat].label) : null,
+            " ", el("b", {}, c.title || c.id), el("small", {}, ` ${c.id}`)),
           el("p", {}, (c.description || "").slice(0, 300)),
-          el("button", { type: "button", onclick: (ev) => loadItems(c, ev.target.parentElement) }, "Show items in current view"))));
+          action);
+      }), ...footer);
     }
 
-    async function loadCollections() {
+    async function loadCatalogue(k) {
+      if (loaded[k]) return;
       try {
-        collections = await allCollections(getJson, `${base()}/collections`);
-        render();
-      } catch (e) { list.replaceChildren(`Could not load catalogue: ${e.message}`); }
+        loaded[k] = (await allCollections(getJson, `${base(k)}/collections`)).map((c) => ({ ...c, _cat: k }));
+      } catch (e) {
+        loaded[k] = [];
+        notify(`Could not load ${CATALOGS[k].label}: ${e.message}`, true);
+      }
+      render();
     }
 
     async function loadItems(c, container) {
@@ -200,35 +238,60 @@ function createPanel(app) {
       container.append(box);
       try {
         const bbox = currentView().join(",");
-        const res = await getJson(`${base()}/search?collections=${encodeURIComponent(c.id)}&bbox=${bbox}&limit=20`);
+        const res = await getJson(`${base(c._cat)}/search?collections=${encodeURIComponent(c.id)}&bbox=${bbox}&limit=20`);
         const items = res.features || [];
         if (!items.length) { box.replaceChildren("No items in this view. Pan or zoom out."); return; }
         box.replaceChildren(...items.map((it) => el("div", { class: "sa-item" },
-          el("div", {}, el("b", {}, it.id), it.properties?.datetime ? el("small", {}, ` ${it.properties.datetime.slice(0, 10)}`) : null),
+          el("div", {}, el("b", {}, it.properties?.title || it.id), it.properties?.datetime ? el("small", {}, ` ${it.properties.datetime.slice(0, 10)}`) : null),
           Object.entries(it.assets || {}).filter(([, a]) => assetKind(a)).map(([k, a]) =>
             el("button", { type: "button", onclick: () => addAsset(c, it, k, a) }, `Add ${a.title || k}`)))));
       } catch (e) { box.replaceChildren(e.message); }
     }
 
+    async function addVector(name, source) {
+      const fc = await executeProcess(fetch, "features", { source, aoi: currentView() }, { async: false });
+      app.addGeoJsonLayer?.(name, fc);
+      const msg = `Added ${name}: ${fc.features?.length ?? 0} features`;
+      notify(msg);
+      return msg;
+    }
+
+    async function addArea(c, container) {
+      // Status stays under the collection: these reads take a few seconds and can fail on large views.
+      container.querySelector(".sa-status")?.remove();
+      const status = el("p", { class: "sa-status sa-muted" }, "Loading for the current view...");
+      container.append(status);
+      try {
+        status.textContent = await addVector(c.title || c.id, `${c.id}/*`);
+      } catch (e) {
+        status.className = "sa-status sa-error-text";
+        status.textContent = e.message;
+        notify(e.message, true);
+      }
+    }
+
     async function addAsset(c, item, key, asset) {
-      const { ref, tileHref } = assetRefs(state.catalog, c.id, item.id, key, asset);
-      const name = `${c.title || c.id} ${item.id}${key === "data" ? "" : ` ${key}`}`;
+      const { ref, tileHref } = assetRefs(c._cat, c.id, item.id, key, asset);
+      const name = `${c.title || c.id} ${item.properties?.title ? "" : item.id}${key === "data" ? "" : ` ${key}`}`.trim();
       try {
         if (assetKind(asset) === "raster") {
-          const categorical = /class|cover|lulc|landuse|land-use/i.test(`${c.id} ${key}`);
+          const categorical = /class|cover|lulc|landuse|land-use/i.test(`${c.id} ${key}`) && !/fraction|density/i.test(`${c.id} ${key}`);
           await addRaster(name, ref, tileHref, null, categorical ? "tab20" : "viridis");
+          notify(`Added ${name}`);
         } else {
-          const fc = await executeProcess(fetch, "features", { source: ref, aoi: currentView() }, { async: false });
-          app.addGeoJsonLayer?.(name, fc);
+          await addVector(name, ref);
         }
-        notify(`Added ${name}`);
       } catch (e) { notify(e.message, true); }
     }
 
     search.addEventListener("input", render);
-    catSel.addEventListener("change", () => { state.catalog = catSel.value; list.replaceChildren("Loading..."); loadCollections(); });
-    loadCollections();
-    return el("div", {}, el("div", { class: "sa-row" }, catSel, search), list);
+    catSel.addEventListener("change", () => {
+      state.catalog = catSel.value === "all" ? state.catalog : catSel.value;
+      render();
+      catalogsShown().forEach(loadCatalogue);
+    });
+    catalogsShown().forEach(loadCatalogue);
+    return el("div", {}, search, el("div", { class: "sa-row" }, kindRow, catSel), list);
   }
 
   // ---------- Tools tab ----------

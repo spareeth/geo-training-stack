@@ -84,3 +84,56 @@ def test_local_copy_unzips_member(monkeypatch, tmp_path):
     p = vector_cache.local_copy("https://h/a_gpkg.zip", "a.gpkg")
     assert open(p, "rb").read() == b"gpkg-bytes"
     assert vector_cache.local_copy("https://h/a_gpkg.zip", "a.gpkg") == p and len(n) == 1  # cached
+
+
+def _parquet(tmp_path, with_bbox=True):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    import shapely
+
+    pts = [Point(1, 1), Point(5, 5), Point(9, 9)]
+    cols = {
+        "id": ["a", "b", "c"],
+        "names": [{"primary": "One"}, {"primary": "Five"}, {"primary": "Nine"}],
+        "sources": [[{"dataset": "x"}]] * 3,
+        "geometry": [shapely.to_wkb(p) for p in pts],
+    }
+    if with_bbox:
+        cols["bbox"] = [{"xmin": p.x, "ymin": p.y, "xmax": p.x, "ymax": p.y} for p in pts]
+    path = tmp_path / ("b.parquet" if with_bbox else "n.parquet")
+    pq.write_table(pa.table(cols), path, row_group_size=1)
+    return str(path)
+
+
+def test_geoparquet_bbox_filter_and_flatten(tmp_path):
+    from processes.geoparquet import read_geoparquet
+
+    got = read_geoparquet([_parquet(tmp_path)], bbox=(0, 0, 6, 6))
+    assert sorted(got["name"]) == ["Five", "One"]
+    assert "sources" not in got.columns and got.crs.to_epsg() == 4326
+
+
+def test_geoparquet_without_bbox_column_is_clipped(tmp_path):
+    from processes.geoparquet import read_geoparquet
+
+    assert list(read_geoparquet([_parquet(tmp_path, False)], bbox=(8, 8, 10, 10))["id"]) == ["c"]
+
+
+def test_geoparquet_s3_https_urls():
+    from processes.geoparquet import S3_HTTPS
+
+    m = S3_HTTPS.match("https://overturemaps-us-west-2.s3.us-west-2.amazonaws.com/release/x/part-1.parquet")
+    assert m.groups() == ("overturemaps-us-west-2", "us-west-2", "release/x/part-1.parquet")
+
+
+def test_collection_wide_ref_reads_overlapping_files(monkeypatch, tmp_path):
+    path = _parquet(tmp_path)
+    monkeypatch.setattr(zonal_stats, "area_hrefs", lambda coll, bbox: [path])
+    assert len(zonal_stats.load_zones("overture-places/*", bbox=(0, 0, 6, 6))) == 2
+
+
+def test_collection_wide_ref_needs_an_area():
+    from pygeoapi.process.base import ProcessorExecuteError
+
+    with pytest.raises(ProcessorExecuteError, match="give an area"):
+        zonal_stats.area_hrefs("overture-buildings", None)

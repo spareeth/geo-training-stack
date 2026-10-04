@@ -4,10 +4,10 @@
 export const PATHS = { processes: "/processes-api", stac: "/stac", tiles: "/tiles", outputs: "/outputs" };
 
 export const CATALOGS = {
-  local: { label: "Course catalogue", url: null },
-  "earth-search": { label: "Earth Search (AWS open data)", url: "https://earth-search.aws.element84.com/v1" },
+  local: { label: "Course catalogue", short: "Course", url: null },
+  "earth-search": { label: "Earth Search (AWS open data)", short: "Earth Search", url: "https://earth-search.aws.element84.com/v1" },
   // CDSE files are s3://eodata hrefs that the server reads with its own CDSE keys, so they stay s3://.
-  cdse: { label: "Copernicus Data Space (CDSE)", url: "https://stac.dataspace.copernicus.eu/v1", serverS3: true },
+  cdse: { label: "Copernicus Data Space (CDSE)", short: "CDSE", url: "https://stac.dataspace.copernicus.eu/v1", serverS3: true },
 };
 
 // Tools with hand-made forms. Every WhiteboxTools tool gets a generated form.
@@ -23,7 +23,27 @@ export const OSM_LAYERS = ["roads", "major_roads", "schools", "health", "hospita
 
 export const RASTER_TYPES = ["image/tiff", "application/x-geotiff", "image/vnd.stac.geotiff"];
 export const VECTOR_TYPES = ["application/geo+json", "application/json", "application/vnd.apache.parquet",
-  "application/x-parquet", "application/flatgeobuf", "application/vnd.flatgeobuf"];
+  "application/x-parquet", "application/flatgeobuf", "application/vnd.flatgeobuf",
+  "application/geopackage+sqlite3", "text/csv"];
+
+/** "raster" or "vector": the course catalogue says so; otherwise guess from asset types and keywords. */
+export function collectionKind(c) {
+  const k = c["geotraining:kind"];
+  if (k === "raster" || k === "vector") return k;
+  const types = Object.values(c.item_assets || {}).map((a) => (a.type || "").toLowerCase().split(";")[0].trim());
+  if (types.some((t) => VECTOR_TYPES.includes(t))) return "vector";
+  if (types.some((t) => RASTER_TYPES.some((r) => t.startsWith(r)))) return "raster";
+  const words = `${c.id} ${(c.keywords || []).join(" ")}`.toLowerCase();
+  return /vector|geoparquet|boundar|building|road|osm|footprint|parcel|geojson/.test(words) ? "vector" : "raster";
+}
+
+/** Every word of the query appears in the collection's id, title, description or keywords. */
+export function matchesQuery(c, query) {
+  const words = (query || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = `${c.id} ${c.title || ""} ${c.description || ""} ${(c.keywords || []).join(" ")}`.toLowerCase();
+  return words.every((w) => text.includes(w));
+}
 
 export function publicHttps(href) {
   if (href.startsWith("s3://")) {
@@ -62,7 +82,7 @@ export function assetKind(asset) {
   const roles = asset.roles || [];
   if (roles.includes("thumbnail") || roles.includes("overview") || roles.includes("metadata")) return null;
   if (RASTER_TYPES.some((t) => type.startsWith(t)) || /\.tiff?$/i.test(asset.href)) return "raster";
-  if (VECTOR_TYPES.includes(type) || /\.(geojson|json|parquet|fgb|gpkg|shp)$/i.test(asset.href)) return "vector";
+  if (VECTOR_TYPES.includes(type) || /\.(geojson|json|parquet|fgb|gpkg|shp|csv)$/i.test(asset.href)) return "vector";
   return null;
 }
 

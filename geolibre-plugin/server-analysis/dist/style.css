@@ -30,3 +30,14 @@
 .sa-job.sa-done summary { color: #16a34a; }
 .sa-toast { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 8px; border-radius: 6px; background: #1f2933; color: #fff; z-index: 10; }
 .sa-toast.sa-error { background: #b91c1c; }
+.sa-search { width: 100%; box-sizing: border-box; margin: 6px 0; padding: 6px 8px; }
+.sa-kinds { display: flex; gap: 2px; flex: 1; }
+.sa-kinds button { flex: 1; padding: 4px 6px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; cursor: pointer; border-radius: 6px; font-size: 12px; }
+.sa-kinds button.sa-active { background: rgba(37,99,235,.15); border-color: rgba(37,99,235,.6); font-weight: 600; }
+.sa-badge { display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 9px; font-size: 11px; line-height: 17px; vertical-align: 1px; }
+.sa-raster { background: rgba(217,119,6,.18); color: #b45309; }
+.sa-vector { background: rgba(5,150,105,.18); color: #047857; }
+.sa-src { background: rgba(127,127,127,.18); }
+@media (prefers-color-scheme: dark) { .sa-raster { color: #fbbf24; } .sa-vector { color: #34d399; } }
+.sa-error-text { color: #b91c1c; }
+@media (prefers-color-scheme: dark) { .sa-error-text { color: #f87171; } }

@@ -5,7 +5,7 @@ Browser-only GIS for training. Trainees install nothing. Heavy analysis runs on 
 | URL | What | Runs where |
 | --- | --- | --- |
 | `https://DOMAIN/` | GeoLibre (map, STAC browser, light analysis) | browser |
-| `https://DOMAIN/stac/` | Course catalogue: standard STAC API (stac-fastapi-pgstac), read-only | server |
+| `https://DOMAIN/stac/` | Course catalogue: standard STAC API (stac-fastapi-pgstac) over public datasets for IsDB countries, read-only | server |
 | `https://DOMAIN/processes-api/` | pygeoapi, OGC API Processes: `whitebox` (all WhiteboxTools tools), `zonal-statistics`, `suitability`, `accessibility`, `buffer-screen`, `features` | server |
 | `https://DOMAIN/plugins/server-analysis/plugin.json` | GeoLibre plugin: Data and Tools panels that run everything above on the server | browser UI |
 | `https://DOMAIN/outputs/` | Result rasters (COG), loadable in GeoLibre | server |
@@ -43,23 +43,62 @@ length of a course, and if you must update mid-course, tell trainees to remove a
 5. Notebook image: `docker build -t geo-training-singleuser:latest jupyterhub/singleuser`
 6. `docker compose up -d --build`
 
-## Load data
-Rasters go into the course catalogue with one command, run from the repo root on the server. Put
-the source file under `data/` first. Nothing needs installing on the host: it runs in the pygeoapi
-image.
+## Course catalogue (public data, nothing copied)
+The catalogue is filled from public sources listed in [`catalog/sources.yml`](catalog/sources.yml),
+for the IsDB member countries. Only metadata is stored; every layer points at public cloud storage.
+
+| Group | Collections |
+| --- | --- |
+| Terrain | Copernicus DEM 30 m |
+| Land cover / water | ESA WorldCover 10 m, Impact Observatory annual 10 m, CLMS 10 m (CDSE), CGLS 100 m + cover fractions (CDSE), CLMS tree cover density 10 m (CDSE), JRC surface water |
+| Population / socio-economic | Meta HRSL 30 m (total and 6 groups), Relative Wealth Index |
+| Boundaries | geoBoundaries Open ADM0-ADM4, Humanitarian (UN OCHA CODs), Authoritative (UN SALB) |
+| OpenStreetMap (HOT exports on HDX) | health, education, roads, buildings, waterways, populated places, financial services, points of interest, airports/ports/railways |
+| Overture Maps (GeoParquet, global) | buildings (OSM + Microsoft + Google), roads, places (schools, clinics, shops), admin areas, infrastructure (power, water, telecom), land use, water |
+
+Fill or refresh it (first run takes a while; re-runs replace items):
+```
+docker compose run --rm -v "$PWD/scripts:/scripts:ro" \
+  --entrypoint /venv/bin/python pygeoapi /scripts/harvest_catalog.py
+```
+`--only osm-roads,admin-boundaries` and `--countries SEN,PAK` limit a run. Add sources by editing
+`sources.yml`; any public STAC API can be mirrored with `kind: stac-mirror`.
+
+The plugin's **Data** tab has a search box (all words must match title, description or keywords),
+**All / Raster / Vector** tabs with counts, and a catalogue picker: Course catalogue, **Earth Search**
+and **Copernicus Data Space (CDSE)** (searched live, for time series: Sentinel-2/1, Landsat,
+Sentinel-2 quarterly mosaics, CLMS NDVI...) or **All catalogues** at once.
+
+Overture collections are GeoParquet files split by area: they show **Add for current view**, which
+reads only the files and row groups covering the view (central Dakar, 2.5 km: 11,666 buildings in
+about 10 s). Views with more than 50,000 features are refused with a "zoom in" message; analysis
+tools use their own area the same way. Bump `release:` in `sources.yml` to move to a newer
+Overture release.
+
+**CDSE** files need the server's CDSE S3 keys: create them at
+https://eodata-s3keysmanager.dataspace.copernicus.eu/ and set `CDSE_S3_ACCESS_KEY` /
+`CDSE_S3_SECRET_KEY` in `.env`. Keys expire; renew them before a course. Trainees never see them.
+
+**Before each course, prewarm the vector cache** for the class countries. Country-wide OSM files
+(roads, buildings) are zipped, so the first read downloads them; prewarmed, a city view loads in
+seconds instead of minutes:
+```
+docker compose exec pygeoapi /venv/bin/python -m training_processes.vector_cache --countries SEN,PAK
+```
+Copies refresh after 30 days (`VECTOR_CACHE_MAX_AGE_DAYS`).
+
+### Own data (optional)
+Rasters can still be added with `scripts/register_cog.py`:
 ```
 docker compose run --rm -v "$PWD/data:/data-rw" -v "$PWD/scripts:/scripts:ro" \
   --entrypoint /venv/bin/python pygeoapi /scripts/register_cog.py \
   /data-rw/incoming/dem.tif --collection dem --item dem-30m --title "Elevation 30 m"
 ```
-It writes a COG to `data/catalog/<collection>/<item>.tif`, creates the collection on first use and
-registers the item (re-running replaces it). Trainees see it under **Course catalogue** in the
-plugin; processes accept it as `dem/dem-30m/data`.
+It writes a COG to `data/catalog/<collection>/<item>.tif` and registers it. Vectors: place
+GeoPackage/FlatGeobuf files in `data/`; processes read them by path.
 
 The catalogue is read-only from outside: Caddy only allows reads and `POST /search`. Writes go to
-`127.0.0.1:8082` on the server, which the script reaches over the internal network.
-
-Vectors: convert to GeoParquet or FlatGeobuf and place them in `data/`; processes read them by path.
+`127.0.0.1:8082` on the server, which the scripts reach over the internal network.
 
 ## Zonal statistics (server-side)
 ```
@@ -88,4 +127,7 @@ GeoLibre: read its LICENSE file. stac-fastapi-pgstac and pgstac (MIT), pygeoapi 
 (Apache-2.0), JupyterHub (BSD-3), Caddy (Apache-2.0), MCP Python SDK (MIT), planetary-computer (MIT),
 scipy (BSD-3). Data: Copernicus DEM (free licence, attribution), ESA WorldCover (CC BY 4.0),
 Impact Observatory LULC (CC BY 4.0), JRC GSW (free, attribution), OSM (ODbL, attribution required),
-WorldPop (CC BY 4.0), CHIRPS (public domain).
+WorldPop (CC BY 4.0), CHIRPS (public domain), Copernicus CLMS/CGLS and Sentinel via CDSE (Copernicus
+free and open licence, attribution; also check CDSE terms for serving data to a class through one
+account), Meta HRSL (CC BY 4.0), Relative Wealth Index (CC BY-NC 4.0: non-commercial use only),
+geoBoundaries (per-country licences, mostly CC BY 4.0), HOT OSM exports (ODbL).

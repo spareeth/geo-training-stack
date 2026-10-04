@@ -3,11 +3,11 @@
 Registers metadata only; assets point at public cloud storage. Run inside the pygeoapi image from
 the repo root (it has pystac-client, requests, shapely, GDAL):
 
-  docker compose run --rm -v "$PWD/catalog:/catalog" -v "$PWD/scripts:/scripts:ro" \\
+  docker compose run --rm -v "$PWD/scripts:/scripts:ro" \\
     --entrypoint /venv/bin/python pygeoapi /scripts/harvest_catalog.py
 
 Options: --only id1,id2 (collections), --countries SEN,PAK (subset), --dry-run.
-Country outlines are cached in catalog/.cache so re-runs are fast.
+Country outlines are cached in /cache/outlines (the pygeoapi cache volume) so re-runs are fast.
 """
 import argparse
 import concurrent.futures as cf
@@ -28,11 +28,12 @@ from shapely.ops import unary_union
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--sources", default="/catalog/sources.yml")
-ap.add_argument("--cache", default="/catalog/.cache")
+ap.add_argument("--cache", default="/cache/outlines")
 ap.add_argument("--api", default=os.environ.get("STAC_API_URL", "http://stac-api:8080/stac"))
 ap.add_argument("--only", help="comma separated collection ids")
 ap.add_argument("--countries", help="comma separated ISO3 subset")
 ap.add_argument("--dry-run", action="store_true")
+ap.add_argument("--collections-only", action="store_true", help="refresh collection metadata, keep items")
 args = ap.parse_args()
 
 gdal.UseExceptions()
@@ -86,8 +87,15 @@ def country_shape(iso):
 
 # ---------------- writing ----------------
 
+VECTOR_KINDS = {"geoboundaries", "hdx-hot", "hdx-csv", "overture"}
+
+
 def ensure_collection(c, bbox):
     body = {
+        # Read by the GeoLibre plugin: Raster/Vector tabs, and "Add for current view" for
+        # collections split into many files.
+        "geotraining:kind": c.get("data_kind") or ("vector" if c["kind"] in VECTOR_KINDS else "raster"),
+        "geotraining:partitioned": c["kind"] == "overture",
         "type": "Collection", "stac_version": "1.0.0", "id": c["id"], "title": c["title"],
         "description": c.get("description", c["title"]), "license": c.get("license", "other"),
         "keywords": c.get("keywords", []), "links": [],
@@ -140,10 +148,29 @@ def harvest_stac_mirror(c, region):
     keep = c.get("assets")
     rules = [(re.compile(a), b) for a, b in c.get("rewrite", [])]
     out = {}
+    def search_geometry(geom):
+        # Compact geometry for the search request: firewalls (CDSE) reject large bodies, and island
+        # countries have thousands of parts. Buffering merges nearby islands; the hull is the fallback.
+        g = geom.buffer(0.1).simplify(0.1)
+        if len(json.dumps(mapping(g))) > 20000:
+            g = geom.convex_hull
+        return mapping(g)
+
+    def country_items(geom):
+        # Some APIs (CDSE) rate-limit bursts of searches: back off and retry.
+        for attempt in range(6):
+            try:
+                search = cat.search(collections=[c["remote_collection"]], intersects=search_geometry(geom), limit=500)
+                return list(search.items_as_dicts())
+            except Exception as e:
+                if attempt == 5 or not re.search(r"429|rate limit|Expecting value|timed out", str(e), re.I):
+                    raise
+                time.sleep(10 * 2 ** attempt)
+
     for iso in COUNTRIES:
         geom = country_shape(iso)
-        search = cat.search(collections=[c["remote_collection"]], intersects=mapping(geom.simplify(0.1)), limit=500)
-        for it in search.items_as_dicts():
+        time.sleep(float(c.get("pause_s", 0)))
+        for it in country_items(geom):
             if it["id"] in out:
                 continue
             assets = {}
@@ -187,19 +214,23 @@ def harvest_global(c, region):
 
 
 def harvest_geoboundaries(c, region):
-    def one(iso_level):
-        iso, level = iso_level
-        meta = gb_meta(iso, level)
-        if not meta:
-            return None
-        return item(f"{iso}-{level}", country_shape(iso), {"data": {
-            "href": meta["gjDownloadURL"], "type": "application/geo+json", "roles": ["data"],
-            "title": f"{meta.get('boundaryName', iso)} {level}"}},
-            {"title": f"{meta.get('boundaryName', iso)} {level}", "country": iso, "admin_level": level,
-             "source_year": meta.get("boundaryYearRepresented")})
-    jobs = [(iso, lv) for iso in COUNTRIES for lv in c.get("levels", ["ADM0", "ADM1", "ADM2"])]
-    with cf.ThreadPoolExecutor(8) as ex:
-        return [i for i in ex.map(one, jobs) if i]
+    """Every admin level geoBoundaries has for the countries, in one release (gbOpen,
+    gbHumanitarian = UN OCHA CODs, gbAuthoritative = UN SALB). One API call lists them all."""
+    release = c.get("release", "gbOpen")
+    levels = set(c.get("levels") or ["ADM0", "ADM1", "ADM2", "ADM3", "ADM4", "ADM5"])
+    rows = get_json(f"https://www.geoboundaries.org/api/current/{release}/ALL/ALL/") or []
+    out = []
+    for m in rows:
+        iso, level = m["boundaryISO"], m["boundaryType"]
+        if iso not in COUNTRIES or level not in levels:
+            continue
+        name = f"{m.get('boundaryName', iso)} {level}"
+        out.append(item(f"{iso}-{level}", country_shape(iso), {"data": {
+            "href": m["gjDownloadURL"], "type": "application/geo+json", "roles": ["data"], "title": name}},
+            {"title": name, "country": iso, "admin_level": level, "units": int(m.get("admUnitCount") or 0),
+             "source": m.get("boundarySource"), "source_year": m.get("boundaryYearRepresented"),
+             "license": m.get("boundaryLicense"), "release": release}))
+    return out
 
 
 def hdx_package(name):
@@ -255,8 +286,29 @@ def harvest_hdx_csv(c, region):
     return items
 
 
+def harvest_overture(c, region):
+    """One item per GeoParquet file of an Overture Maps release (static STAC at stac.overturemaps.org),
+    for files overlapping the countries. Readers open only the files and row groups for their area."""
+    base = f"https://stac.overturemaps.org/{c['release']}/{c['theme']}/{c['type']}"
+    col = get_json(f"{base}/collection.json")
+    hrefs = [l["href"] if l["href"].startswith("http") else f"{base}/{l['href'].lstrip('./')}"
+             for l in col["links"] if l["rel"] == "item"]
+    with cf.ThreadPoolExecutor(16) as ex:
+        raw = list(ex.map(get_json, hrefs))
+    out = []
+    for it in raw:
+        if not it or not box(*it["bbox"]).intersects(region):
+            continue
+        a = it["assets"]["aws"]
+        out.append(item(it["id"].replace("/", "-"), box(*it["bbox"]), {"data": {
+            "href": a["href"], "type": "application/vnd.apache.parquet", "roles": ["data"],
+            "title": f"{c['type']} {it['id']}"}}, {"overture:release": c["release"]}))
+    return out
+
+
 KINDS = {"stac-mirror": harvest_stac_mirror, "tile-grid": harvest_tile_grid, "global": harvest_global,
-         "geoboundaries": harvest_geoboundaries, "hdx-hot": harvest_hdx_hot, "hdx-csv": harvest_hdx_csv}
+         "geoboundaries": harvest_geoboundaries, "hdx-hot": harvest_hdx_hot, "hdx-csv": harvest_hdx_csv,
+         "overture": harvest_overture}
 
 
 def main():
@@ -271,6 +323,10 @@ def main():
         t = time.time()
         log(f"{c['id']} ({c['kind']})")
         try:
+            if args.collections_only:
+                ensure_collection(c, region.bounds)
+                log("  -> collection metadata updated")
+                continue
             items = KINDS[c["kind"]](c, region)
             ensure_collection(c, region.bounds)
             n = upsert(c["id"], items)

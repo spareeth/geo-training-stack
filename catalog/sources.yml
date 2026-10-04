@@ -10,6 +10,7 @@
 #   geoboundaries one item per country and admin level (geoBoundaries API)
 #   hdx-hot       one item per country for a HOT OpenStreetMap export theme (HDX), GeoPackage assets
 #   hdx-csv       one item per country from an HDX dataset of per-country CSV point files
+#   overture      one item per GeoParquet file of an Overture Maps theme/type (global, read by area)
 
 # IsDB member countries (ISO 3166-1 alpha-3).
 countries: [AFG, ALB, ARE, AZE, BEN, BFA, BGD, BHR, BRN, CIV, CMR, COM, DJI, DZA, EGY, GAB, GIN, GMB,
@@ -79,6 +80,7 @@ collections:
     remote_collection: clms_lcm_global_10m_yearly_v1_cog
     assets: [map]
     keep_s3: true
+    pause_s: 2  # CDSE rate-limits bursts of searches
 
   - id: clms-tree-cover-density-10m
     title: Tree cover density, Copernicus CLMS 10 m (2020, pantropical)
@@ -90,6 +92,7 @@ collections:
     remote_collection: clms_tcd_pantropical_10m_yearly_v1_cog
     assets: [map]
     keep_s3: true
+    pause_s: 2  # CDSE rate-limits bursts of searches
 
   - id: clms-land-cover-100m
     title: Land cover and cover fractions, Copernicus CGLS 100 m (2015-2019)
@@ -104,6 +107,7 @@ collections:
              builtup_coverfraction_layer, grass_coverfraction_layer, shrub_coverfraction_layer,
              bare_coverfraction_layer, permanentwater_coverfraction_layer, seasonalwater_coverfraction_layer]
     keep_s3: true
+    pause_s: 2  # CDSE rate-limits bursts of searches
 
   # ---------------- population ----------------
   - id: hrsl-population
@@ -134,12 +138,30 @@ collections:
 
   # ---------------- administrative boundaries ----------------
   - id: admin-boundaries
-    title: Administrative boundaries (geoBoundaries ADM0-ADM2)
-    description: Country, first and second level administrative units, geoBoundaries gbOpen release.
+    title: Administrative boundaries (geoBoundaries Open, ADM0-ADM4)
+    description: Country to fourth-level administrative units, geoBoundaries gbOpen (open licences, all
+      countries). Item properties give the source, year, licence and number of units.
     keywords: [boundaries, admin, zones]
     license: CC-BY-4.0
     kind: geoboundaries
-    levels: [ADM0, ADM1, ADM2]
+    release: gbOpen
+
+  - id: admin-boundaries-humanitarian
+    title: Administrative boundaries, humanitarian (UN OCHA COD via geoBoundaries)
+    description: UN OCHA Common Operational Datasets, the boundaries used by humanitarian and
+      development agencies, ADM0-ADM4 where published.
+    keywords: [boundaries, admin, zones, ocha, cod]
+    license: other
+    kind: geoboundaries
+    release: gbHumanitarian
+
+  - id: admin-boundaries-authoritative
+    title: Administrative boundaries, authoritative (UN SALB via geoBoundaries)
+    description: UN Second Administrative Level Boundaries (official, government-endorsed), ADM0-ADM2.
+    keywords: [boundaries, admin, zones, salb, official]
+    license: other
+    kind: geoboundaries
+    release: gbAuthoritative
 
   # ---------------- OpenStreetMap themes (HOT exports on HDX, refreshed by HOT) ----------------
   - {id: osm-health-facilities, title: 'Health facilities (OpenStreetMap)', theme: health_facilities, keywords: [health], kind: hdx-hot, license: ODbL-1.0}
@@ -151,3 +173,14 @@ collections:
   - {id: osm-financial-services, title: 'Banks and financial services (OpenStreetMap)', theme: financial_services, keywords: [finance, markets], kind: hdx-hot, license: ODbL-1.0}
   - {id: osm-points-of-interest, title: 'Points of interest (OpenStreetMap)', theme: points_of_interest, keywords: [markets, utilities, poi], kind: hdx-hot, license: ODbL-1.0}
   - {id: osm-transport-hubs, title: 'Airports, sea ports and railways (OpenStreetMap)', themes: [airports, sea_ports, railways], keywords: [transport], kind: hdx-hot, license: ODbL-1.0}
+
+  # ---------------- Overture Maps (GeoParquet on AWS, global, read for the area in view) ----------------
+  # Bump `release` to update (https://stac.overturemaps.org/). Overture merges OSM with Microsoft,
+  # Google and other open sources, so buildings and places are far more complete than OSM alone.
+  - {id: overture-buildings, title: 'Buildings (Overture Maps: OSM + Microsoft + Google)', kind: overture, release: 2026-09-23.1, theme: buildings, type: building, keywords: [buildings, geoparquet], license: ODbL-1.0}
+  - {id: overture-roads, title: 'Roads and paths (Overture Maps)', kind: overture, release: 2026-09-23.1, theme: transportation, type: segment, keywords: [roads, transport, geoparquet], license: ODbL-1.0}
+  - {id: overture-places, title: 'Places: schools, clinics, shops, services (Overture Maps)', kind: overture, release: 2026-09-23.1, theme: places, type: place, keywords: [places, poi, schools, health, markets, geoparquet], license: CDLA-Permissive-2.0}
+  - {id: overture-admin-areas, title: 'Administrative areas (Overture Maps divisions)', kind: overture, release: 2026-09-23.1, theme: divisions, type: division_area, keywords: [boundaries, admin, geoparquet], license: ODbL-1.0}
+  - {id: overture-infrastructure, title: 'Infrastructure: power, water, telecom, towers (Overture Maps)', kind: overture, release: 2026-09-23.1, theme: base, type: infrastructure, keywords: [utilities, power, infrastructure, geoparquet], license: ODbL-1.0}
+  - {id: overture-land-use, title: 'Land use (Overture Maps)', kind: overture, release: 2026-09-23.1, theme: base, type: land_use, keywords: [land use, geoparquet], license: ODbL-1.0}
+  - {id: overture-water, title: 'Water bodies and rivers (Overture Maps)', kind: overture, release: 2026-09-23.1, theme: base, type: water, keywords: [water, rivers, geoparquet], license: ODbL-1.0}

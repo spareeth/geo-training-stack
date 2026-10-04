@@ -72,7 +72,8 @@ def _main(argv):
             if c["kind"] in ("hdx-hot", "hdx-csv"):
                 refs += [f"{c['id']}/{iso}" for iso in isos]
             elif c["kind"] == "geoboundaries":
-                refs += [f"{c['id']}/{iso}-{lv}" for iso in isos for lv in c.get("levels", [])]
+                refs += [f"{c['id']}/{iso}-{lv}" for iso in isos
+                         for lv in c.get("levels") or ["ADM0", "ADM1", "ADM2", "ADM3", "ADM4"]]
     from pystac_client import Client
     api = Client.open(os.environ["STAC_API_URL"])
     for ref in refs:

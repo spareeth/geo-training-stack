@@ -3,7 +3,8 @@ FROM geopython/pygeoapi:latest
 # scipy, pandas). Install only what is missing, into /venv, and keep numpy at the apt version so the
 # GDAL/rasterio builds stay ABI-compatible and use the image's PROJ database.
 RUN /venv/bin/pip install --no-cache-dir "numpy==$(/venv/bin/python -c 'import numpy;print(numpy.__version__)')" \
-      "exactextract>=0.2" "geopandas>=0.14" "pystac-client>=0.7" "planetary-computer>=1.0"
+      "exactextract>=0.2" "geopandas>=0.14" "pystac-client>=0.7" "planetary-computer>=1.0" \
+      "pyarrow>=17"
 
 # WhiteboxTools open core (MIT): the same toolbox GeoLibre runs in the browser, here on the server.
 # Pin a release by changing the URL; check the licence file in the zip when upgrading.
