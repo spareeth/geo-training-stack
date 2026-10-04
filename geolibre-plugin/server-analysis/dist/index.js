@@ -98,10 +98,69 @@ function assetRefs(catalog, collection, itemId, key, asset) {
   return { ref: href, tileHref: href };
 }
 
-function tileTemplate(href, { rescale, colormap = "viridis", bidx } = {}) {
+/** Official class colours for land cover products (value -> [label, hex]). */
+const CLASS_PALETTES = {
+  "esa-worldcover": {
+    10: ["Tree cover", "#006400"], 20: ["Shrubland", "#ffbb22"], 30: ["Grassland", "#ffff4c"],
+    40: ["Cropland", "#f096ff"], 50: ["Built-up", "#fa0000"], 60: ["Bare / sparse vegetation", "#b4b4b4"],
+    70: ["Snow and ice", "#f0f0f0"], 80: ["Permanent water", "#0064c8"], 90: ["Herbaceous wetland", "#0096a0"],
+    95: ["Mangroves", "#00cf75"], 100: ["Moss and lichen", "#fae6a0"],
+  },
+  "io-lulc-annual": {
+    1: ["Water", "#419bdf"], 2: ["Trees", "#397d49"], 4: ["Flooded vegetation", "#7a87c6"], 5: ["Crops", "#e49635"],
+    7: ["Built area", "#c4281b"], 8: ["Bare ground", "#a59b8f"], 9: ["Snow / ice", "#a8ebff"], 10: ["Clouds", "#616161"],
+    11: ["Rangeland", "#e3e2c3"],
+  },
+};
+
+function paletteFor(collectionId) {
+  const id = (collectionId || "").toLowerCase();
+  return Object.entries(CLASS_PALETTES).find(([k]) => id.includes(k))?.[1] || null;
+}
+
+/** TiTiler "colormap" parameter (JSON value -> hex) for a class palette. */
+function colormapParam(palette) {
+  return JSON.stringify(Object.fromEntries(Object.entries(palette).map(([v, [, hex]]) => [v, hex])));
+}
+
+/** Legend entries for the classes present (values from a categorical statistics histogram). */
+function classEntries(values, palette, colormapDef) {
+  return values.map((v) => {
+    const key = String(Math.round(v));
+    if (palette?.[key]) return { value: v, label: palette[key][0], color: palette[key][1] };
+    const c = colormapDef?.[key];
+    return { value: v, label: String(v), color: c ? `rgb(${c[0]},${c[1]},${c[2]})` : "#999" };
+  });
+}
+
+/** CSS linear-gradient for a TiTiler colormap definition ({"0": [r,g,b,a], ... "255": ...}). */
+function rampCss(colormapDef, stops = 9) {
+  const parts = [];
+  for (let i = 0; i < stops; i += 1) {
+    const k = String(Math.round((i / (stops - 1)) * 255));
+    const c = colormapDef?.[k] || [128, 128, 128];
+    parts.push(`rgb(${c[0]},${c[1]},${c[2]}) ${Math.round((i / (stops - 1)) * 100)}%`);
+  }
+  return `linear-gradient(to right, ${parts.join(", ")})`;
+}
+
+/** Feature properties as CSV (one row per feature, union of property names), with a zone number. */
+function featuresToCsv(fc) {
+  const rows = (fc?.features || []).map((f, i) => ({ zone: i + 1, ...(f.properties || {}) }));
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((c) => !c.startsWith("__"));
+  const cell = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.map(cell).join(","), ...rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n") + "\n";
+}
+
+function tileTemplate(href, { rescale, colormap = "viridis", colormapJson, bidx } = {}) {
   const q = new URLSearchParams({ url: href });
   if (rescale) q.set("rescale", `${rescale[0]},${rescale[1]}`);
-  if (colormap) q.set("colormap_name", colormap);
+  if (colormapJson) q.set("colormap", colormapJson);
+  else if (colormap) q.set("colormap_name", colormap);
   if (bidx) q.set("bidx", String(bidx));
   return `${PATHS.tiles}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${q.toString()}`;
 }
@@ -281,13 +340,82 @@ function createPanel(app) {
 
   // ---------- map helpers ----------
 
-  async function addRaster(name, ref, tileHref, rescale, colormap) {
-    if (!rescale) {
-      try {
-        rescale = rescaleFromStats(await getJson(`${PATHS.tiles}/cog/statistics?url=${encodeURIComponent(tileHref)}`));
-      } catch { rescale = null; }
+  const wantCsv = new Set();
+
+  function downloadCsv(fc, stem) {
+    const blob = new Blob([featuresToCsv(fc)], { type: "text/csv" });
+    const a = el("a", { href: URL.createObjectURL(blob), download: `${stem}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.csv` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  // ---------- legends ----------
+  // GeoLibre's layer panel shows no legend for tile layers, so the plugin draws one on the map.
+  const legends = new Map(); // layer name -> { title, html node }
+  let legendBox = null;
+  const colormapDefs = {};
+
+  async function colormapDef(name) {
+    if (!colormapDefs[name]) colormapDefs[name] = await getJson(`${PATHS.tiles}/colorMaps/${name}`).catch(() => null);
+    return colormapDefs[name];
+  }
+
+  function legendContainer() {
+    if (legendBox?.isConnected) return legendBox;
+    legendBox = el("div", { class: "sa-legend maplibregl-ctrl" });
+    let added = false;
+    try {
+      added = app.addMapControl?.({ onAdd: () => legendBox, onRemove: () => legendBox.remove() }, "bottom-left") !== false;
+    } catch { added = false; }
+    if (!added || !legendBox.isConnected) {
+      (document.querySelector(".maplibregl-map") || document.body).append(legendBox);
+      legendBox.classList.add("sa-legend-float");
     }
-    app.addTileLayer?.(name, tileTemplate(tileHref, { rescale, colormap }), { opacity: 0.85 });
+    return legendBox;
+  }
+
+  function renderLegends() {
+    const names = new Set((app.listLayers?.() || []).map((l) => l.name));
+    for (const name of [...legends.keys()]) if (names.size && !names.has(name)) legends.delete(name);
+    const box = legendContainer();
+    box.replaceChildren(...[...legends.values()].map((l) => l.node));
+    box.style.display = legends.size ? "" : "none";
+  }
+  setInterval(() => { if (legends.size) renderLegends(); }, 2000);
+
+  function setLegend(name, body) {
+    const node = el("details", { class: "sa-legend-item", open: true }, el("summary", {}, name), body);
+    legends.set(name, { node });
+    renderLegends();
+  }
+
+  async function addRaster(name, ref, tileHref, rescale, colormap, { palette = null, categorical = false, unit = "" } = {}) {
+    const statsUrl = `${PATHS.tiles}/cog/statistics?url=${encodeURIComponent(tileHref)}`;
+    if (palette || categorical) {
+      // Classes: official palette when known, else the colormap; legend lists the classes in view.
+      let values = palette ? Object.keys(palette).map(Number) : [];
+      try {
+        const bbox = currentView().join(",");
+        const st = await getJson(`${statsUrl}&categorical=true&max_size=512&bbox=${bbox}`);
+        const hist = Object.values(st)[0]?.histogram;
+        if (hist?.[1]?.length) values = hist[1].filter((v, i) => hist[0][i] > 0);
+      } catch { /* keep palette values */ }
+      const def = palette ? null : await colormapDef(colormap || "tab20");
+      app.addTileLayer?.(name, tileTemplate(tileHref, palette ? { colormapJson: colormapParam(palette) } : { colormap: colormap || "tab20" }), { opacity: 0.85 });
+      setLegend(name, el("div", {}, classEntries(values.slice(0, 30), palette, def).map((e) =>
+        el("div", { class: "sa-legend-row" }, el("span", { class: "sa-swatch", style: `background:${e.color}` }), e.label))));
+    } else {
+      if (!rescale) {
+        try { rescale = rescaleFromStats(await getJson(statsUrl)); } catch { rescale = null; }
+      }
+      app.addTileLayer?.(name, tileTemplate(tileHref, { rescale, colormap }), { opacity: 0.85 });
+      const def = await colormapDef(colormap || "viridis");
+      const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v) : Number(v.toFixed(2))).toLocaleString();
+      setLegend(name, el("div", {}, el("div", { class: "sa-ramp", style: `background:${rampCss(def)}` }),
+        rescale ? el("div", { class: "sa-ramp-labels" }, el("span", {}, fmt(rescale[0])), el("span", {}, `${fmt(rescale[1])}${unit ? ` ${unit}` : ""}`)) : null));
+    }
     if (!rasters.some((r) => r.ref === ref)) rasters.push({ name, ref });
   }
 
@@ -377,12 +505,14 @@ function createPanel(app) {
       job.result = result;
       for (const layer of resultLayers(processId, result, label)) {
         if (layer.type === "raster") {
-          await addRaster(layer.name, layer.href, layer.href, layer.rescale, processId === "suitability" ? "rdylgn" : "viridis");
+          await addRaster(layer.name, layer.href, layer.href, layer.rescale, processId === "suitability" ? "rdylgn" : "viridis",
+            { unit: processId === "accessibility" ? "m" : processId === "suitability" ? "(score)" : "" });
         } else {
           app.addGeoJsonLayer?.(layer.name, layer.geojson);
         }
       }
       notify(`${label}: done`);
+      if (processId === "zonal-statistics" && wantCsv.has(label)) downloadCsv(result, "zonal-statistics");
     } catch (e) {
       job.status = "failed";
       job.error = e.message;
@@ -509,8 +639,9 @@ function createPanel(app) {
       const name = `${c.title || c.id} ${item.properties?.title ? "" : item.id}${key === "data" ? "" : ` ${key}`}`.trim();
       try {
         if (assetKind(asset) === "raster") {
-          const categorical = /class|cover|lulc|landuse|land-use/i.test(`${c.id} ${key}`) && !/fraction|density/i.test(`${c.id} ${key}`);
-          await addRaster(name, ref, tileHref, null, categorical ? "tab20" : "viridis");
+          const categorical = /class|cover|lulc|landuse|land-use|map$/i.test(`${c.id} ${key}`) && !/fraction|density|tree-cover/i.test(`${c.id} ${key}`);
+          await addRaster(name, ref, tileHref, null, categorical ? "tab20" : "viridis",
+            { palette: paletteFor(c.id), categorical, unit: /dem|elevation/i.test(c.id) ? "m" : "" });
           notify(`Added ${name}`);
         } else {
           await addVector(name, ref);
@@ -613,14 +744,18 @@ function createPanel(app) {
     function zonalForm() {
       const r = rasterPicker("Raster *");
       const z = vectorPicker("Zones (polygons) *");
+      const csv = el("input", { type: "checkbox", checked: true });
       const stats = ["mean", "min", "max", "sum", "count", "median", "stdev", "majority"].map((s) => {
         const c = el("input", { type: "checkbox", value: s });
         if (["mean", "min", "max", "count"].includes(s)) c.checked = true;
         return { c, node: el("label", { class: "sa-check" }, c, s) };
       });
       return [r.node, z.node, el("div", { class: "sa-checks" }, stats.map((s) => s.node)),
+        el("label", { class: "sa-check" }, csv, "Also download the table as CSV"),
         runButton("Run on server", () => {
           if (!r.value()) throw new Error("Choose a raster");
+          wantCsv.add("Zonal statistics");
+          if (!csv.checked) wantCsv.delete("Zonal statistics");
           return { raster: r.value(), zones: z.value(), stats: stats.filter((s) => s.c.checked).map((s) => s.c.value) };
         }, "zonal-statistics", "Zonal statistics")];
     }
@@ -751,7 +886,9 @@ function createPanel(app) {
     const render = () => list.replaceChildren(...(jobs.length ? jobs.map((j) => el("details", { class: `sa-job sa-${j.status}`, open: j.id === jobs[0].id },
       el("summary", {}, `${j.label}: ${j.status}`),
       j.error ? el("pre", {}, j.error) : null,
-      j.result ? el("pre", {}, summarise(j.processId, j.result)) : null)) : ["No jobs yet. Run a tool from the Tools tab."]));
+      j.result ? el("pre", {}, summarise(j.processId, j.result)) : null,
+      j.processId === "zonal-statistics" && j.result?.features
+        ? el("button", { type: "button", onclick: () => downloadCsv(j.result, "zonal-statistics") }, "Download CSV") : null)) : ["No jobs yet. Run a tool from the Tools tab."]));
     // Re-render whenever any job's status changes; stop when the tab is closed.
     const signature = () => jobs.map((j) => `${j.id}:${j.status}`).join(",");
     let last = signature();
@@ -764,7 +901,57 @@ function createPanel(app) {
     return list;
   }
 
-  const views = { data: dataView, tools: toolsView, jobs: jobsView };
+  // ---------- Workspace tab: GeoLibre's own tools on the server ----------
+
+  function workspaceView() {
+    const list = el("div", { class: "sa-list" }, "Loading...");
+    const copy = (text) => navigator.clipboard?.writeText(text).then(() => notify(`Copied ${text}`), () => notify(text));
+
+    async function refresh() {
+      try {
+        const r = await executeProcess(fetch, "workspace", { action: "list" }, { async: false });
+        list.replaceChildren(...(r.files.length ? r.files.map((f) => el("div", { class: "sa-item" },
+          el("div", {}, el("span", { class: `sa-badge sa-${f.kind === "raster" ? "raster" : "vector"}` }, f.kind === "raster" ? "Raster" : "File"),
+            " ", el("b", {}, f.name), el("small", {}, ` ${f.size_mb} MB, ${f.modified} UTC`)),
+          el("code", { class: "sa-path" }, f.geolibre_path),
+          el("div", { class: "sa-row" },
+            el("button", { type: "button", onclick: () => copy(f.geolibre_path) }, "Copy path"),
+            f.kind === "raster" ? el("button", { type: "button", onclick: () => addRaster(f.name, f.path, f.path, null, "viridis").then(() => notify(`Added ${f.name}`), (e) => notify(e.message, true)) }, "Add to map") : null,
+            el("a", { href: f.url, download: f.name, class: "sa-button" }, "Download"))))
+          : ["The workspace is empty. Copy a raster in above, or run a GeoLibre tool with an output path under /data."]));
+      } catch (e) { list.replaceChildren(e.message); }
+    }
+
+    const r = rasterPicker("Raster to copy *");
+    const name = input("File name", { placeholder: "e.g. dem-fujairah" });
+    const aoi = aoiPicker(true);
+    const result = el("div", {});
+    const prep = el("button", { class: "sa-primary", type: "button" }, "Copy into workspace");
+    prep.addEventListener("click", async () => {
+      result.replaceChildren("Copying (clipped to the area)...");
+      try {
+        if (!r.value()) throw new Error("Choose a raster (add one from the Data tab first)");
+        const out = await executeProcess(fetch, "workspace", { action: "prepare", raster: r.value(), aoi: aoi.value(), name: name.value() }, { async: false });
+        result.replaceChildren(el("p", {}, "Ready for GeoLibre's tools. Input path: "), el("code", { class: "sa-path" }, out.geolibre_path),
+          el("button", { type: "button", onclick: () => copy(out.geolibre_path) }, "Copy path"));
+        refresh();
+      } catch (e) { result.replaceChildren(el("p", { class: "sa-error-text" }, e.message)); }
+    });
+
+    refresh();
+    return el("div", {},
+      el("details", { class: "sa-help", open: true }, el("summary", {}, "Run GeoLibre's own tools on the server"),
+        el("ol", {},
+          el("li", {}, "Copy a raster into the workspace below (clipped to the view or a drawn shape)."),
+          el("li", {}, "Open Processing > Whitebox Toolbox (or GeoLibre Toolbox) and untick \"Run locally (WASM)\"."),
+          el("li", {}, "Set the input to Path and paste the path (/data/...). Set the output to a new path such as /data/slope.tif."),
+          el("li", {}, "Run. Then press Refresh here and Add the result to the map, or download it."))),
+      el("h4", {}, "Copy a raster into the workspace"), r.node, name.node, aoi.node, prep, result,
+      el("div", { class: "sa-row" }, el("h4", {}, "Workspace files"), el("button", { type: "button", onclick: refresh }, "Refresh")),
+      list);
+  }
+
+  const views = { data: dataView, tools: toolsView, workspace: workspaceView, jobs: jobsView };
   const nav = el("div", { class: "sa-tabs" }, Object.keys(views).map((k) => {
     tabs[k] = el("button", { type: "button", onclick: () => show(k) }, k[0].toUpperCase() + k.slice(1));
     return tabs[k];

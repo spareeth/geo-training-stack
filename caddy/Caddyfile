@@ -23,6 +23,11 @@
 			root * /srv/plugins
 			file_server
 		}
+		# Workspace shared with GeoLibre's own tools (downloads of their outputs).
+		handle_path /workspace/* {
+			root * /srv/workspace
+			file_server
+		}
 		handle_path /outputs/* {
 			root * /srv/outputs
 			file_server

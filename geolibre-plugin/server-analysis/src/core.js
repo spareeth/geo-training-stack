@@ -97,10 +97,69 @@ export function assetRefs(catalog, collection, itemId, key, asset) {
   return { ref: href, tileHref: href };
 }
 
-export function tileTemplate(href, { rescale, colormap = "viridis", bidx } = {}) {
+/** Official class colours for land cover products (value -> [label, hex]). */
+export const CLASS_PALETTES = {
+  "esa-worldcover": {
+    10: ["Tree cover", "#006400"], 20: ["Shrubland", "#ffbb22"], 30: ["Grassland", "#ffff4c"],
+    40: ["Cropland", "#f096ff"], 50: ["Built-up", "#fa0000"], 60: ["Bare / sparse vegetation", "#b4b4b4"],
+    70: ["Snow and ice", "#f0f0f0"], 80: ["Permanent water", "#0064c8"], 90: ["Herbaceous wetland", "#0096a0"],
+    95: ["Mangroves", "#00cf75"], 100: ["Moss and lichen", "#fae6a0"],
+  },
+  "io-lulc-annual": {
+    1: ["Water", "#419bdf"], 2: ["Trees", "#397d49"], 4: ["Flooded vegetation", "#7a87c6"], 5: ["Crops", "#e49635"],
+    7: ["Built area", "#c4281b"], 8: ["Bare ground", "#a59b8f"], 9: ["Snow / ice", "#a8ebff"], 10: ["Clouds", "#616161"],
+    11: ["Rangeland", "#e3e2c3"],
+  },
+};
+
+export function paletteFor(collectionId) {
+  const id = (collectionId || "").toLowerCase();
+  return Object.entries(CLASS_PALETTES).find(([k]) => id.includes(k))?.[1] || null;
+}
+
+/** TiTiler "colormap" parameter (JSON value -> hex) for a class palette. */
+export function colormapParam(palette) {
+  return JSON.stringify(Object.fromEntries(Object.entries(palette).map(([v, [, hex]]) => [v, hex])));
+}
+
+/** Legend entries for the classes present (values from a categorical statistics histogram). */
+export function classEntries(values, palette, colormapDef) {
+  return values.map((v) => {
+    const key = String(Math.round(v));
+    if (palette?.[key]) return { value: v, label: palette[key][0], color: palette[key][1] };
+    const c = colormapDef?.[key];
+    return { value: v, label: String(v), color: c ? `rgb(${c[0]},${c[1]},${c[2]})` : "#999" };
+  });
+}
+
+/** CSS linear-gradient for a TiTiler colormap definition ({"0": [r,g,b,a], ... "255": ...}). */
+export function rampCss(colormapDef, stops = 9) {
+  const parts = [];
+  for (let i = 0; i < stops; i += 1) {
+    const k = String(Math.round((i / (stops - 1)) * 255));
+    const c = colormapDef?.[k] || [128, 128, 128];
+    parts.push(`rgb(${c[0]},${c[1]},${c[2]}) ${Math.round((i / (stops - 1)) * 100)}%`);
+  }
+  return `linear-gradient(to right, ${parts.join(", ")})`;
+}
+
+/** Feature properties as CSV (one row per feature, union of property names), with a zone number. */
+export function featuresToCsv(fc) {
+  const rows = (fc?.features || []).map((f, i) => ({ zone: i + 1, ...(f.properties || {}) }));
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((c) => !c.startsWith("__"));
+  const cell = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.map(cell).join(","), ...rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n") + "\n";
+}
+
+export function tileTemplate(href, { rescale, colormap = "viridis", colormapJson, bidx } = {}) {
   const q = new URLSearchParams({ url: href });
   if (rescale) q.set("rescale", `${rescale[0]},${rescale[1]}`);
-  if (colormap) q.set("colormap_name", colormap);
+  if (colormapJson) q.set("colormap", colormapJson);
+  else if (colormap) q.set("colormap_name", colormap);
   if (bidx) q.set("bidx", String(bidx));
   return `${PATHS.tiles}/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${q.toString()}`;
 }

@@ -29,6 +29,10 @@ metadata:
     name: Admin
     email: ${ACME_EMAIL}
 resources:
+  workspace:
+    type: process
+    processor:
+      name: training_processes.workspace.WorkspaceProcessor
   zonal-statistics:
     type: process
     processor:

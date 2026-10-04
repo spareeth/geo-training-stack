@@ -12,6 +12,8 @@ volumes:
   stac_db: {}
   outputs: {}
   vector_cache: {}
+  # Shared with GeoLibre's own Processing tools: its sidecar reads/writes /data, which is this volume.
+  workspace: {}
   jupyterhub_data: {}
 
 services:
@@ -22,6 +24,7 @@ services:
     env_file: .env
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - workspace:/srv/workspace:ro
       - caddy_data:/data
       - outputs:/srv/outputs:ro
       - ./geolibre-plugin:/srv/plugins:ro
@@ -30,6 +33,10 @@ services:
   geolibre:
     image: ghcr.io/opengeos/geolibre:latest
     restart: unless-stopped
+    volumes:
+      # GeoLibre's sidecar (Whitebox Toolbox, GeoLibre Toolbox, "Run locally (WASM)" unticked) is
+      # confined to /data. Prepare inputs there from the Server Analysis plugin's Workspace tab.
+      - workspace:/data
     environment:
       GEOLIBRE_SHARE_URL: "off"
     networks: [geo]
@@ -52,6 +59,7 @@ services:
     volumes:
       - outputs:/outputs:ro
       - ./data:/data:ro
+      - workspace:/workspace:ro
     command: ["uvicorn", "titiler.application.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/tiles"]
     networks: [geo]
 
@@ -65,12 +73,13 @@ services:
       SCRIPT_NAME: /processes-api
       OUTPUT_DIR: /outputs
       OUTPUT_BASE_URL: https://${DOMAIN}/outputs
-      DATA_ROOTS: /data/,/outputs/
+      DATA_ROOTS: /data/,/outputs/,/workspace/
       <<: *cdse-s3
     volumes:
       - ./data:/data:ro
       - outputs:/outputs
       - vector_cache:/cache
+      - workspace:/workspace
       - ./catalog:/catalog:ro
     deploy:
       resources:

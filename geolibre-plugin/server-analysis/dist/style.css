@@ -41,3 +41,15 @@
 @media (prefers-color-scheme: dark) { .sa-raster { color: #fbbf24; } .sa-vector { color: #34d399; } }
 .sa-error-text { color: #b91c1c; }
 @media (prefers-color-scheme: dark) { .sa-error-text { color: #f87171; } }
+.sa-legend { background: rgba(255,255,255,.95); color: #1f2937; border-radius: 6px; padding: 6px 8px; font: 12px/1.35 system-ui, sans-serif; max-height: 45vh; overflow: auto; max-width: 240px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.sa-legend-float { position: absolute; left: 10px; bottom: 36px; z-index: 5; }
+.sa-legend-item summary { font-weight: 600; cursor: pointer; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-legend-item + .sa-legend-item { margin-top: 6px; border-top: 1px solid rgba(0,0,0,.1); padding-top: 4px; }
+.sa-legend-row { display: flex; align-items: center; gap: 6px; }
+.sa-swatch { width: 14px; height: 12px; border: 1px solid rgba(0,0,0,.25); flex: none; }
+.sa-ramp { height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,.2); }
+.sa-ramp-labels { display: flex; justify-content: space-between; font-size: 11px; }
+.sa-path { display: block; font-size: 11px; word-break: break-all; margin: 2px 0; }
+.sa-help ol { padding-left: 18px; margin: 4px 0; }
+.sa-button { display: inline-block; padding: 4px 8px; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; color: inherit; text-decoration: none; font-size: 13px; }
+@media (prefers-color-scheme: dark) { .sa-legend { background: rgba(31,41,55,.95); color: #f3f4f6; } }

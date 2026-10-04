@@ -29,6 +29,26 @@ test("assetKind treats CSV points and zipped GeoPackages as vector", () => {
   assert.equal(core.assetKind({ href: "https://h/x_gpkg.zip#roads.gpkg", type: "application/geopackage+sqlite3" }), "vector");
 });
 
+test("featuresToCsv escapes and unions columns, skips internal fields", () => {
+  const csv = core.featuresToCsv({ features: [
+    { properties: { name: "A, north", mean: 1.5, __gm_id: "x" } },
+    { properties: { name: 'say "hi"', count: 3 } }] });
+  assert.equal(csv, 'zone,name,mean,count\n1,"A, north",1.5,\n2,"say ""hi""",,3\n');
+});
+
+test("class legend uses official palettes, else the colormap", () => {
+  const p = core.paletteFor("esa-worldcover");
+  assert.deepEqual(core.classEntries([10, 50], p, null).map((e) => e.label), ["Tree cover", "Built-up"]);
+  assert.equal(core.classEntries([3], null, { 3: [1, 2, 3, 255] })[0].color, "rgb(1,2,3)");
+  assert.equal(JSON.parse(core.colormapParam({ 10: ["Trees", "#006400"] }))["10"], "#006400");
+  assert.ok(core.tileTemplate("u", { colormapJson: "{}" }).includes("colormap=%7B%7D"));
+});
+
+test("rampCss samples the colormap", () => {
+  const def = Object.fromEntries(Array.from({ length: 256 }, (_, i) => [String(i), [i, 0, 0, 255]]));
+  assert.ok(core.rampCss(def, 3).startsWith("linear-gradient(to right, rgb(0,0,0) 0%, rgb(128,0,0) 50%, rgb(255,0,0) 100%"));
+});
+
 test("allCollections follows next links", async () => {
   const pages = {
     "https://a/collections?limit=100": { collections: [{ id: "1" }, { id: "2" }], links: [{ rel: "next", href: "https://a/p2" }] },

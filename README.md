@@ -22,6 +22,19 @@ browser (tested in GeoLibre with the prebuilt image):
 2. **Plugins > Server Analysis** to activate it. A **Server Analysis** button appears in the top bar.
 3. **Server Analysis > Open data and analysis panel**.
 
+**GeoLibre's own tools on the server.** The GeoLibre image ships its Python sidecar (WhiteboxTools,
+rasterio, GeoPandas), so **Processing > Whitebox Toolbox** (735 Whitebox tools) and **GeoLibre
+Toolbox** run on this server when the trainee unticks **Run locally (WASM)** in the tool dialog.
+The sidecar reads and writes only its `/data` folder, which is the shared `workspace` volume:
+1. Plugin **Workspace** tab: pick a raster (added from the Data tab), **Copy into workspace** (clipped
+   to the view), and copy the path it shows, e.g. `/data/dem-hajar.tif`.
+2. GeoLibre tool dialog: untick **Run locally (WASM)**, input **Path** = that path, output a new
+   path such as `/data/slope.tif`, **Run**.
+3. Workspace tab: **Refresh**, then **Add to map** (with a legend) or **Download**. Workspace rasters
+   are also inputs for the plugin's tools (zonal statistics, suitability...).
+GeoLibre's vector tools need no workspace: vector layers are sent to the sidecar with the job.
+The workspace is shared by everyone on the shared login: use distinctive file names.
+
 **Updating the plugin:** GeoLibre pins the plugin's code when it is first trusted. After any change
 to `dist/`, it silently stops loading the plugin (only a console warning) until each browser removes
 the URL under **Settings > Manage Plugins > Settings** and adds it again. Freeze the plugin for the
