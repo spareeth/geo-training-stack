@@ -56,6 +56,42 @@ function fileKind(name) {
   return "file";
 }
 
+/** Feature properties as CSV (one row per feature, union of property names), with a zone number. */
+function featuresToCsv(fc) {
+  const rows = (fc?.features || []).map((f, i) => ({ zone: i + 1, ...(f.properties || {}) }));
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((c) => !c.startsWith("__"));
+  const cell = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.map(cell).join(","), ...rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n") + "\n";
+}
+
+/** "Roads 2024 (final).geojson" -> "roads-2024-final" (safe server file stem). */
+function safeStem(name) {
+  return (name || "").replace(/\.[A-Za-z0-9]+$/, "").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 60) || "layer";
+}
+
+/**
+ * Run one of GeoLibre's own raster tools on the sidecar (POST /sidecar/raster/run) and wait for it.
+ * GeoLibre's web build locks its Raster tools dialog to the desktop app, but the sidecar runs them.
+ */
+async function runRasterTool(fetchJson, { toolId, input, output, parameters = {} }, { pollMs = 1000, timeoutMs = 600000 } = {}) {
+  let job = await fetchJson("/sidecar/raster/run", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool_id: toolId, input_path: input, output_path: output, parameters }),
+  });
+  const started = Date.now();
+  while (job.status === "running" || job.status === "queued" || job.status === "pending") {
+    if (Date.now() - started > timeoutMs) throw new Error(`${toolId}: still running after ${timeoutMs / 1000}s`);
+    await new Promise((r) => setTimeout(r, pollMs));
+    job = await fetchJson(`/sidecar/conversion/jobs/${encodeURIComponent(job.id)}`);
+  }
+  if (job.status !== "succeeded") throw new Error(job.error || `${toolId} ${job.status}`);
+  return job;
+}
+
 // Remote Processing plugin for GeoLibre: runs GeoLibre's own Processing tools (Whitebox Toolbox,
 // GeoLibre Toolbox) on a shared sidecar server instead of in the browser, and moves files to and
 // from that server. No data is bundled: participants upload their own.
@@ -198,11 +234,15 @@ function createPanel(app) {
     try { await serverJson(`/files/${encodeURIComponent(f.name)}`, { method: "DELETE" }); refresh(); } catch (e) { notice(e.message, true); }
   }
 
+  let serverFiles = [];
+
   async function refresh() {
     if (!config.server) return;
     list.replaceChildren("Loading...");
     try {
       const r = await serverJson("/files");
+      serverFiles = r.files;
+      fillZonalPickers();
       list.replaceChildren(...(r.files.length ? r.files.map((f) => el("div", { class: "rp-item" },
         el("div", {}, el("span", { class: `rp-badge rp-${f.kind}` }, f.kind), " ", el("b", {}, f.name),
           el("small", {}, ` ${f.size_mb} MB, ${f.modified} UTC`)),
@@ -216,6 +256,73 @@ function createPanel(app) {
     } catch (e) { list.replaceChildren(el("p", { class: "rp-error-text" }, e.message)); }
   }
 
+  // ---- zonal statistics (GeoLibre's own implementation, run on the sidecar) ----
+  const zRaster = el("select", {});
+  const zZones = el("select", {});
+  const zBand = el("input", { type: "number", min: "1", value: "1" });
+  const zPrefix = el("input", { type: "text", placeholder: "e.g. dem_ (optional)" });
+  const zCsv = el("input", { type: "checkbox", checked: true });
+  const zStatus = el("p", { class: "rp-muted" });
+
+  function vectorLayers() {
+    return (app.listLayers?.() || []).filter((l) => !/tile|xyz|raster|cog|wms|wmts|zarr|image|terrain|3d|background|basemap/i.test(`${l.type || ""}`));
+  }
+
+  function fillZonalPickers() {
+    const keep = [zRaster.value, zZones.value];
+    zRaster.replaceChildren(...serverFiles.filter((f) => f.kind === "raster").map((f) => el("option", { value: f.path }, f.name)));
+    zZones.replaceChildren(
+      ...vectorLayers().map((l) => el("option", { value: `layer:${l.id}` }, `Map layer: ${l.name}`)),
+      ...serverFiles.filter((f) => /\.(geojson|json)$/i.test(f.name)).map((f) => el("option", { value: f.path }, `Server file: ${f.name}`)));
+    if ([...zRaster.options].some((o) => o.value === keep[0])) zRaster.value = keep[0];
+    if ([...zZones.options].some((o) => o.value === keep[1])) zZones.value = keep[1];
+  }
+
+  function downloadText(text, filename, type) {
+    const a = el("a", { href: URL.createObjectURL(new Blob([text], { type })), download: filename });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  const zRun = el("button", { type: "button", class: "rp-primary" }, "Run zonal statistics on the server");
+  zRun.addEventListener("click", async () => {
+    if (!config.server) { notice("Connect to a server first", true); return; }
+    if (!zRaster.value) { notice("Upload a raster first (or run a tool that writes one under /data)", true); return; }
+    if (!zZones.value) { notice("Add a polygon layer to the map or upload a GeoJSON of zones", true); return; }
+    zRun.disabled = true;
+    try {
+      let zonesPath = zZones.value;
+      if (zonesPath.startsWith("layer:")) {
+        // Zones drawn or loaded in GeoLibre: send them to the server as a GeoJSON file.
+        const id = zonesPath.slice(6);
+        const layer = vectorLayers().find((l) => l.id === id);
+        const features = app.getLayerFeatures?.(id) || [];
+        if (!features.length) throw new Error("That layer has no features");
+        zStatus.textContent = "Sending the zones to the server...";
+        const name = `zones-${safeStem(layer?.name)}.geojson`;
+        const up = await serverJson(`/files/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify({ type: "FeatureCollection", features }) });
+        zonesPath = up.path;
+      }
+      const rasterName = zRaster.selectedOptions[0]?.textContent || "raster";
+      const output = `/data/zonal-${safeStem(rasterName)}-${Date.now().toString(36)}.geojson`;
+      zStatus.textContent = "Computing on the server...";
+      const job = await runRasterTool(serverJson, { toolId: "zonal", input: zRaster.value, output,
+        parameters: { zones_path: zonesPath, band: Number(zBand.value) || 1, prefix: zPrefix.value.trim() } });
+      const r = await serverFetch(`/data/${encodeURIComponent(output.split("/").pop())}`);
+      const fc = await r.json();
+      app.addGeoJsonLayer?.(`Zonal statistics: ${rasterName}`, fc);
+      zStatus.textContent = `${(job.messages || []).slice(-1)[0] || "Done"}. Click a zone on the map to see its values.`;
+      if (zCsv.checked) downloadText(featuresToCsv(fc), `${output.split("/").pop().replace(/\.geojson$/, "")}.csv`, "text/csv");
+      refresh();
+    } catch (e) {
+      zStatus.textContent = e.message;
+      notice(e.message, true);
+    } finally { zRun.disabled = false; }
+  });
+  setInterval(() => { if (root.isConnected && document.activeElement !== zZones) fillZonalPickers(); }, 4000);
+
   root.append(
     el("h4", {}, "Processing server"), el("label", { class: "rp-field" }, el("span", {}, "Server"), server),
     el("label", { class: "rp-field" }, el("span", {}, "Access code"), code),
@@ -228,6 +335,13 @@ function createPanel(app) {
         el("li", {}, "Set the output to a new path under /data, e.g. /data/yourname-slope.tif, and Run."),
         el("li", {}, "Refresh the file list here and Add the result to the map, or Download it."))),
     el("h4", {}, "Upload your data"), picker, upload, progress,
+    el("h4", {}, "Zonal statistics"),
+    el("p", { class: "rp-muted" }, "GeoLibre's zonal statistics (count, min, max, mean, sum, std, median per zone), run on the server."),
+    el("label", { class: "rp-field" }, el("span", {}, "Raster (on the server)"), zRaster),
+    el("label", { class: "rp-field" }, el("span", {}, "Zones (polygons)"), zZones),
+    el("div", { class: "rp-row" }, el("label", { class: "rp-field" }, el("span", {}, "Band"), zBand), el("label", { class: "rp-field" }, el("span", {}, "Field prefix"), zPrefix)),
+    el("label", { class: "rp-check" }, zCsv, " Also download the table as CSV"),
+    zRun, zStatus,
     el("div", { class: "rp-row" }, el("h4", {}, "Files on the server"), el("button", { type: "button", onclick: refresh }, "Refresh")),
     list);
   check().then((ok) => { if (ok) refresh(); });

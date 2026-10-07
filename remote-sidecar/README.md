@@ -46,7 +46,29 @@ Only `geolibre-plugin/remote-processing/` from the parent folder is used (mounte
    the plugin cannot list.
 4. **Run**, then **Refresh** in the plugin and **Add to map** or **Download**.
 
+## Zonal statistics (raster + vector zones)
+Use the plugin's **Zonal statistics** section, not GeoLibre's **GeoLibre Toolbox > Raster > Zonal
+statistics** dialog: GeoLibre locks its whole Raster tools dialog to the desktop app on the web,
+even when a sidecar is available. The plugin calls the same GeoLibre code on the sidecar directly.
+1. Raster: a raster on the server (uploaded, or written by a Whitebox tool under `/data`).
+2. Zones: any polygon layer on the map (drawn with GeoEditor or loaded with **Add Data > Vector
+   Layer**; the plugin sends it to the server) or an uploaded GeoJSON. Zones are reprojected to the
+   raster's CRS automatically.
+3. Optional band and field prefix (`dem_` gives `dem_mean`...). **Run zonal statistics on the server**.
+4. Result: the zones with count, min, max, mean, sum, std and median are added to the map (click a
+   zone to see its values) and, if ticked, downloaded as CSV. Tested against rasterio: identical.
+
+Whitebox **Zonal Statistics** in the Whitebox Toolbox also works, but it takes the zones as a raster.
+
 ## Notes and limits
+- **GeoLibre Toolbox > Raster** tools (hillshade, clip, reclassify, raster calculator, zonal...)
+  cannot be started from GeoLibre's own dialog on the web (desktop only). Whitebox Toolbox tools,
+  which cover the same operations, do run on the server. The plugin's Zonal statistics form is the
+  route for zonal statistics with polygon zones.
+- **Units.** Vector tools measure in the layer's CRS: zones in latitude/longitude give areas in
+  square degrees. Reproject to a projected CRS (e.g. UTM) first for m² / metres.
+- **Image fix.** The published GeoLibre image lacks `contourpy`, which its sidecar's raster runtime
+  needs; `Dockerfile.geolibre` adds it. Remove it once the upstream image includes it.
 - **Shared folder.** Everyone with the access code sees the same `/data`. Ask participants to prefix
   file names with their initials. Change `ACCESS_CODE` per course; clear old files with
   `sudo docker compose exec files sh -c 'rm -rf /data/*'`.

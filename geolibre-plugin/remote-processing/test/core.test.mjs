@@ -37,3 +37,24 @@ test("fileKind", () => {
   assert.equal(core.fileKind("roads.geojson"), "vector");
   assert.equal(core.fileKind("report.html"), "file");
 });
+
+test("featuresToCsv numbers zones and escapes", () => {
+  const csv = core.featuresToCsv({ features: [{ properties: { name: "A, b", dem_mean: 1.5 } }, { properties: { name: "C" } }] });
+  assert.equal(csv, 'zone,name,dem_mean\n1,"A, b",1.5\n2,C,\n');
+});
+
+test("safeStem", () => {
+  assert.equal(core.safeStem("Roads 2024 (final).geojson"), "roads-2024-final");
+  assert.equal(core.safeStem(""), "layer");
+});
+
+test("runRasterTool posts the request and polls the job until it ends", async () => {
+  const calls = [];
+  const replies = [{ id: "j1", status: "running" }, { id: "j1", status: "running" }, { id: "j1", status: "succeeded", outputs: { vector: { path: "/data/o.geojson" } } }];
+  const fetchJson = async (path, init) => { calls.push([path, init?.body ? JSON.parse(init.body) : null]); return replies.shift(); };
+  const job = await core.runRasterTool(fetchJson, { toolId: "zonal", input: "/data/d.tif", output: "/data/o.geojson", parameters: { zones_path: "/data/z.geojson" } }, { pollMs: 1 });
+  assert.equal(job.outputs.vector.path, "/data/o.geojson");
+  assert.deepEqual(calls[0], ["/sidecar/raster/run", { tool_id: "zonal", input_path: "/data/d.tif", output_path: "/data/o.geojson", parameters: { zones_path: "/data/z.geojson" } }]);
+  assert.equal(calls.length, 3);
+  await assert.rejects(core.runRasterTool(async () => ({ id: "x", status: "failed", error: "bad zones" }), { toolId: "zonal", input: "a", output: "b" }), /bad zones/);
+});

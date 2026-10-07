@@ -1,0 +1,5 @@
+# Official GeoLibre image plus the packages its sidecar's raster runtime imports but the published
+# image lacks (GeoLibre Toolbox raster tools, incl. Zonal statistics, report "Raster runtime is
+# unavailable" without them). Remove once the upstream image ships them.
+FROM ghcr.io/opengeos/geolibre:latest
+RUN pip install --no-cache-dir "contourpy>=1.2"

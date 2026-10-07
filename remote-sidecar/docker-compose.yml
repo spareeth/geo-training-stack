@@ -10,7 +10,10 @@ services:
   # Official GeoLibre image, used for its bundled Python sidecar (Whitebox Toolbox, GeoLibre
   # Toolbox), reverse-proxied by its own nginx at /sidecar. It reads and writes /data only.
   geolibre:
-    image: ghcr.io/opengeos/geolibre:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.geolibre
+    image: geolibre-sidecar:local
     restart: unless-stopped
     environment:
       GEOLIBRE_SHARE_URL: "off"
@@ -20,7 +23,7 @@ services:
 
   # Uploads, file list and map-ready copies, from the same image (FastAPI, rasterio, rio-cogeo).
   files:
-    image: ghcr.io/opengeos/geolibre:latest
+    image: geolibre-sidecar:local
     restart: unless-stopped
     entrypoint: ["python", "-m", "uvicorn", "files_app:app", "--app-dir", "/app", "--host", "0.0.0.0", "--port", "8000"]
     environment:

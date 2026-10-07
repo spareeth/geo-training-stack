@@ -54,3 +54,39 @@ export function fileKind(name) {
   if (/\.(geojson|json)$/.test(n)) return "vector";
   return "file";
 }
+
+/** Feature properties as CSV (one row per feature, union of property names), with a zone number. */
+export function featuresToCsv(fc) {
+  const rows = (fc?.features || []).map((f, i) => ({ zone: i + 1, ...(f.properties || {}) }));
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].filter((c) => !c.startsWith("__"));
+  const cell = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.map(cell).join(","), ...rows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n") + "\n";
+}
+
+/** "Roads 2024 (final).geojson" -> "roads-2024-final" (safe server file stem). */
+export function safeStem(name) {
+  return (name || "").replace(/\.[A-Za-z0-9]+$/, "").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 60) || "layer";
+}
+
+/**
+ * Run one of GeoLibre's own raster tools on the sidecar (POST /sidecar/raster/run) and wait for it.
+ * GeoLibre's web build locks its Raster tools dialog to the desktop app, but the sidecar runs them.
+ */
+export async function runRasterTool(fetchJson, { toolId, input, output, parameters = {} }, { pollMs = 1000, timeoutMs = 600000 } = {}) {
+  let job = await fetchJson("/sidecar/raster/run", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool_id: toolId, input_path: input, output_path: output, parameters }),
+  });
+  const started = Date.now();
+  while (job.status === "running" || job.status === "queued" || job.status === "pending") {
+    if (Date.now() - started > timeoutMs) throw new Error(`${toolId}: still running after ${timeoutMs / 1000}s`);
+    await new Promise((r) => setTimeout(r, pollMs));
+    job = await fetchJson(`/sidecar/conversion/jobs/${encodeURIComponent(job.id)}`);
+  }
+  if (job.status !== "succeeded") throw new Error(job.error || `${toolId} ${job.status}`);
+  return job;
+}
