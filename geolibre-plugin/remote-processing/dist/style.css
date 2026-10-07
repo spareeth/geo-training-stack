@@ -1,0 +1,20 @@
+.rp-panel { padding: 8px 10px; font-size: 13px; position: relative; }
+.rp-panel h4 { margin: 12px 0 6px; }
+.rp-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.rp-field input, .rp-panel input[type=file] { width: 100%; box-sizing: border-box; padding: 5px 6px; }
+.rp-row { display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 4px 0; }
+.rp-panel button, .rp-button { padding: 5px 9px; border: 1px solid rgba(127,127,127,.4); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; font-size: 13px; text-decoration: none; }
+.rp-primary { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; }
+.rp-status { margin: 6px 0; font-size: 12px; }
+.rp-ok { color: #047857; }
+.rp-error-text { color: #b91c1c; }
+.rp-muted { opacity: .7; font-size: 12px; }
+.rp-help ol { padding-left: 18px; margin: 4px 0; }
+.rp-item { border: 1px solid rgba(127,127,127,.25); border-radius: 6px; padding: 6px; margin: 6px 0; }
+.rp-item code { display: block; font-size: 11px; margin: 3px 0; word-break: break-all; }
+.rp-badge { display: inline-block; padding: 0 6px; border-radius: 9px; font-size: 11px; background: rgba(127,127,127,.18); }
+.rp-raster { background: rgba(217,119,6,.18); color: #b45309; }
+.rp-vector { background: rgba(5,150,105,.18); color: #047857; }
+.rp-toast { position: sticky; bottom: 6px; margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: #1f2937; color: #fff; font-size: 12px; }
+.rp-toast.rp-error { background: #b91c1c; }
+@media (prefers-color-scheme: dark) { .rp-ok { color: #34d399; } .rp-error-text { color: #f87171; } }

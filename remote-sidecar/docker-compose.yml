@@ -1,0 +1,43 @@
+# Shared GeoLibre sidecar for participants using the public web app (https://web.geolibre.app).
+# See README.md. Only HTTPS (Caddy) is exposed; the sidecar and file service stay internal.
+name: geolibre-shared-sidecar
+
+volumes:
+  sidecar_data: {}
+  caddy_data: {}
+
+services:
+  # Official GeoLibre image, used for its bundled Python sidecar (Whitebox Toolbox, GeoLibre
+  # Toolbox), reverse-proxied by its own nginx at /sidecar. It reads and writes /data only.
+  geolibre:
+    image: ghcr.io/opengeos/geolibre:latest
+    restart: unless-stopped
+    environment:
+      GEOLIBRE_SHARE_URL: "off"
+    volumes:
+      - sidecar_data:/data
+      - ./nginx-body-size.conf:/etc/nginx/conf.d/zz-body-size.conf:ro
+
+  # Uploads, file list and map-ready copies, from the same image (FastAPI, rasterio, rio-cogeo).
+  files:
+    image: ghcr.io/opengeos/geolibre:latest
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "uvicorn", "files_app:app", "--app-dir", "/app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-500}
+    volumes:
+      - sidecar_data:/data
+      - ./files:/app:ro
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - sidecar_data:/srv/data:ro
+      - ../geolibre-plugin/remote-processing:/srv/plugin:ro

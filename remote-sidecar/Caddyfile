@@ -1,0 +1,49 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Shared GeoLibre sidecar: web.geolibre.app (plus the Remote Processing plugin) sends its processing
+# requests here. Everything except the plugin files needs the access code, sent by the plugin as the
+# X-Access-Code header, or as ?code= on map/download URLs.
+{$SIDECAR_SITE} {
+	encode zstd gzip
+
+	header {
+		Access-Control-Allow-Origin {$ALLOWED_ORIGIN}
+		Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag"
+		Vary Origin
+	}
+
+	@preflight method OPTIONS
+	handle @preflight {
+		header Access-Control-Allow-Methods "GET, HEAD, POST, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "*"
+		header Access-Control-Allow-Private-Network "true"
+		header Access-Control-Max-Age "600"
+		respond 204
+	}
+
+	# Plugin manifest and code: public, so GeoLibre can install it.
+	handle_path /plugin/* {
+		root * /srv/plugin
+		file_server
+	}
+
+	@authorized expression `{http.request.header.X-Access-Code} == "{$ACCESS_CODE}" || {http.request.uri.query.code} == "{$ACCESS_CODE}"`
+	handle @authorized {
+		handle /sidecar/* {
+			reverse_proxy geolibre:80
+		}
+		handle /files* {
+			reverse_proxy files:8000
+		}
+		handle_path /data/* {
+			root * /srv/data
+			file_server
+		}
+	}
+
+	handle {
+		respond "Access code required" 401
+	}
+}
