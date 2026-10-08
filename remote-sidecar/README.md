@@ -78,10 +78,12 @@ Example: slope from a DEM.
 3. **Untick "Run locally (WASM)"** (top right of the dialog). If it stays ticked, the tool runs on
    your laptop instead and cannot read files on the server.
 4. **Input**: choose **Path** and paste the copied path, e.g. `/data/u-7f3k9q2m1x/dem.tif`.
-5. **Output**: type a new file in your folder, e.g. `/data/u-7f3k9q2m1x/slope.tif`. Always include
-   your folder; with "Auto" the result goes to a temporary place you cannot open.
+5. **Output**: leave it on **Auto**, or type a name such as `slope` or `pop-clip.tif`. It is saved in
+   your folder automatically (Auto names look like `slope-20261008-153000.tif`). A name you already
+   used is overwritten.
 6. **Run**. Wait for **Succeeded**.
-7. In the panel: **Refresh**, then **Add to map** next to `slope.tif` (or **Download**).
+7. The result appears in the panel's **Data** tab when the tool finishes: **Add to map** (or
+   **Download**).
 
 Tools with **vector inputs** (e.g. *Buffer Vector*, *Polygon Area*): pick the layer from the input
 list instead of a path. Vector results are also added to the map by GeoLibre automatically.
@@ -105,8 +107,8 @@ with these values (click a zone to see them) and the table downloads as a CSV fo
 | Problem | What to do |
 |---|---|
 | The tool fails with "could not read input" or runs very slowly | Untick **Run locally (WASM)** in the tool dialog. |
-| "Failed: Tool execution failed" | Check the input path (use **Copy path**) and that the output is a new file name in your folder ending in `.tif` (raster) or `.geojson` (vector). |
-| My result is not in the file list | Click **Refresh**. If the output was left on "Auto", run again with an output path in your folder. |
+| "Failed: Tool execution failed" | Check the input path (use **Copy path**), or pick the layer from the input list. Ask your trainer to look at the server log if it persists. |
+| My result is not in the file list | Click **Refresh** in the Data tab. If it is still missing, the tool failed: check its message. |
 | Status says *Wrong access code* or *Not connected* | Re-type the server address and code exactly, **Save and connect**. |
 | My files are gone | You are probably in a new browser or cleared its data: enter your old id under **Use an existing folder id**. |
 | The plugin disappeared after the trainer updated it | **Settings > Manage Plugins > Settings**: remove the plugin URL and add it again, then turn it on under **Plugins > Installed**. |
@@ -151,8 +153,9 @@ Sizing: Whitebox tools are CPU and memory heavy; 8+ cores and 16-32 GB RAM for a
   `sudo docker compose exec files sh -c 'rm -rf /data/u-* /data/.display /data/.crs /data/.utm'`
 
 ## Updating
-`cd /opt/geo-training-stack && sudo git pull && cd remote-sidecar && sudo docker compose up -d --build`
-(between courses only; see plugin pinning below).
+`cd ~/geo-training-stack && git pull && cd remote-sidecar && docker compose up -d --build && docker compose restart files`
+(between courses only; see plugin pinning below). The file service's code is mounted from the
+repo, so it must be restarted to pick up changes.
 
 ---
 
