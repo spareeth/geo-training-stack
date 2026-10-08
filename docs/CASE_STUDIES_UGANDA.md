@@ -14,7 +14,8 @@ server in October 2026; small differences are normal.
 | 0 | Where in Uganda should a programme focus? | Select by Expression, Export Selected Features |
 | 1 | Who lives far from a school in Moroto? | Vector Points To Raster, Euclidean Distance, Reclass, Multiply, Zonal statistics |
 | 2 | Who lives far from a health centre (and from a proper one)? | Same chain, with an attribute filter on facility level |
-| 3 | What would a Moroto–Tapac road upgrade cross? | Buffer, Slope, Reclass, Zonal statistics, Select by Location |
+| 3 | What would a Moroto–Tapac road upgrade cross? | Buffer, Slope, Reclass, Zonal statistics (summary and class areas), Select by Location |
+| 4 | How do I share a result as a map? | Style, Print Layout, plugin's Logo on a printed map |
 
 ## Data
 
@@ -22,12 +23,22 @@ server in October 2026; small differences are normal.
 
 | File | Contents |
 |---|---|
+| `uganda_country.geojson` | Uganda outline |
+| `uganda_regions.geojson` | The 4 regions, with `pop_total` |
+| `uganda_subregions.geojson` | The 17 subregions (Karamoja among them), with `pop_total` |
+| `uganda_districts.geojson` | The 146 districts, with `pop_total`, `n_subcounties`, `area_km2` |
 | `uganda_subcounties_census2024.geojson` | All 2,205 subcounties with NPHC 2024 census fields (UBOS) |
 | `moroto_subcounties_census2024.geojson` | The 9 subcounties of Moroto district |
 | `moroto_schools_osm.geojson` | 106 schools and kindergartens (OpenStreetMap, Moroto + 10 km) |
 | `moroto_health_facilities_osm.geojson` | 31 health facilities (OpenStreetMap), duplicates removed, `level` = HC II / HC III / Hospital |
 | `moroto_roads_osm.geojson` | Roads and paths (OpenStreetMap) |
 | `moroto_tapac_road.geojson` | The 27 km Moroto town – Tapac route used in Part 3 |
+| `census_data_dictionary.csv` | Meaning and unit of every census field |
+
+The four national boundary files are also on the server (**Shared course data > Vectors > Add to
+map**). They were made by dissolving the census subcounties, so all levels line up; their `pop_total`
+is the sum of the subcounties and leaves out Bidi Bidi settlement and the five Nakapiripirit
+subcounties without figures.
 
 **Rasters** (already on the server: plugin **Data** tab > **Shared course data**):
 
@@ -39,7 +50,7 @@ server in October 2026; small differences are normal.
 
 Useful census fields: `pop_total`, `pop6_12`, `oos6_12` and `pct_oos612` (children 6–12 out of
 school), `pct_oos131` (13–17), `pct_watimp` (improved water), `pct_grid` (grid electricity),
-`pop_dens`. The full list is in the data package's `docs/data_dictionary.csv`.
+`pop_dens`. All fields are explained in [Census attributes](#census-attributes) at the end.
 
 ## Before you start
 - Plugin installed and connected (see the participant guide): **Remote Processing > Server connection
@@ -56,16 +67,20 @@ school), `pct_oos131` (13–17), `pct_watimp` (improved water), `pct_grid` (grid
 **Context.** A (hypothetical) *Karamoja Education and Health Access Programme* must choose one district
 for its first phase. The evidence: the 2024 census at subcounty level.
 
-1. **Add Data > Vector Layer**: `uganda_subcounties_census2024.geojson`. 2,205 subcounties appear.
-2. Click a few subcounties to read their attributes (`pop_total`, `pct_oos612`, `pct_watimp`...).
+1. **Context layers:** load `uganda_country`, `uganda_regions`, `uganda_subregions` and
+   `uganda_districts`. Compare `pop_total` and `n_subcounties` (Karamoja: 1.43 million people in 113
+   subcounties). Style them as outlines (fill opacity 0; thick for regions, thin grey for districts)
+   and drag them to the top of the Layers panel.
+2. **Add Data > Vector Layer**: `uganda_subcounties_census2024.geojson`. 2,205 subcounties appear.
+3. Click a few subcounties to read their attributes (`pop_total`, `pct_oos612`, `pct_watimp`...).
    Optionally colour the layer by `pct_oos612` from its style settings (palette icon in the Layers
    panel) to see the national pattern of out-of-school children.
-3. **Edit > Select by Expression...** (expressions are written in MapLibre's JSON form; the
+4. **Edit > Select by Expression...** (expressions are written in MapLibre's JSON form; the
    **Expression builder...** helps):
    - `["==", ["get", "Subregion"], "Karamoja"]`, **Creating a new selection**, **Select features**.
    - Then `[">", ["get", "pct_oos612"], 70]` with **Selecting within the current selection**.
-4. **Edit > Zoom to Selection**.
-5. Choose the district: `["==", ["get", "District"], "Moroto"]` (new selection), then **Edit > Export
+5. **Edit > Zoom to Selection**.
+6. Choose the district: `["==", ["get", "District"], "Moroto"]` (new selection), then **Edit > Export
    Selected Features as Layer**. This is the study area (or load `moroto_subcounties_census2024.geojson`).
 
 **What you should see.** The Karamoja selection has **113 subcounties**. Karamoja is the outlier: 74.6 % of children aged 6–12 are out of school,
@@ -178,13 +193,13 @@ cover and people does a 1 km corridor on each side cross?
 3. **Slope:** Whitebox **Slope**: Input Path `/data/moroto_dem_30m.tif`, units degrees, Output `slope`.
 4. **Steep terrain:** **Reclass**: Input `slope.tif`, values `0;0;15;1;15;90`, Output `steep15`
    (1 where slope is over 15°).
-5. **Land cover classes:** **Reclass** on `/data/moroto_landcover_10m.tif`, one class at a time, e.g.
-   cropland `0;0;40;1;40;41;0;41;256` → `cropland` (1 = cropland). Same pattern for grassland (30),
-   shrubland (20), built-up (50).
-6. **Corridor statistics:** plugin **Zonal statistics** with Zones = the Buffer layer:
+5. **Land cover:** plugin **Zonal statistics**: Raster = Shared `moroto_landcover_10m.tif`,
+   **Statistics = Area of each class**, Zones = the Buffer layer, prefix `lc_`. One run gives the
+   km² and % of every class (`lc_grassland_km2`, `lc_grassland_pct`, `lc_cropland_pct`...). WorldCover
+   codes are named automatically. Try it with the Moroto subcounties as zones too.
+6. **Slope and people:** plugin **Zonal statistics**, Statistics = **Summary**, Zones = the Buffer:
    - `slope.tif`: mean, max, median slope
    - `steep15.tif`: the mean is the share of the corridor steeper than 15°
-   - each class raster: the mean is that class's share of the corridor
    - `/data/moroto_population_2024_100m.tif`: the sum is the people in the corridor
 7. **Facilities along the road:** **Edit > Select by Location...**: schools (then health facilities)
    that are within the Buffer layer.
@@ -207,12 +222,43 @@ cover and people does a 1 km corridor on each side cross?
 
 ---
 
+## Part 4: Print a result as a map, with the IsDB logo
+
+**Goal.** Turn the Part 1 result into a report map: out-of-school children and schools in Moroto.
+
+**Steps**
+1. Keep on the map the Part 1 zonal statistics layer, the schools, `uganda_districts` and a light
+   basemap; hide the rest.
+2. Select the zonal layer, **Style** tab: **Graduated** on `pct_oos612`, 5 classes, yellow-to-red,
+   fill opacity ~0.8. Schools: small dark circles; districts: thin grey outline, no fill. Rename
+   layers (**⋯ > Rename**) so the legend reads well.
+3. Zoom to Moroto district, north up.
+4. **Project > Print Layout...**: Title *Moroto district: children out of school and distance to
+   school*; Subtitle *Share of children aged 6–12 out of school, by subcounty (NPHC 2024)*; A4
+   Landscape; tick Legend, Scale bar, North arrow, Date, Footer text (*Data: UBOS NPHC 2024;
+   OpenStreetMap contributors; WorldPop 2024. GEIDA training, IsDB.*). **Recapture map** if needed.
+5. **Export PNG**.
+6. Plugin **Data > Logo on a printed map**: choose the exported PNG, leave Logo empty (IsDB logo),
+   corner Bottom right, width 16 %, **Add logo and download**. You get `…-logo.png`.
+
+GeoLibre's Print Layout has no image element yet. **Controls > Image** (URL
+`https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png`) shows a logo on the screen map, but
+the print layout leaves it out, hence step 6.
+
+**Discuss**
+- Which map tells the story better: out-of-school share or people beyond 5 km?
+- What should every report map carry? (Title, legend, scale, north arrow, source, date, author.)
+
+---
+
 ## Notes for facilitators
 - **Test the chain the day before** with the course data; the rasters are already shared on the
   server, so participants only open vectors and run tools.
 - **Run locally (WASM)** must be unticked in every Whitebox dialog; this is the most common mistake.
 - **Reclass values** use the classic Whitebox format `new;from;to;new;from;to...` (semicolons). Whitebox
   comparison tools (Greater Than, Equal To...) need two rasters, so Reclass is the way to threshold.
+- **Plugin version:** class areas and the logo tool need Remote Processing 0.4.0 or later. Anyone who
+  installed earlier must remove the plugin URL and add it again.
 - **Buffers of real roads:** use GeoLibre's own Buffer (step 3.2). Whitebox *Buffer Vector* returns
   wrong corridors for long, winding lines (fine for polygons and simple lines).
 - **Zonal statistics** uses the plugin's form, not GeoLibre's *Raster tools* dialog (desktop only).
@@ -220,3 +266,190 @@ cover and people does a 1 km corridor on each side cross?
   census totals; simplified UBOS boundaries with small overlaps (see the census package README).
 - **Licences:** UBOS NPHC 2024; OpenStreetMap (ODbL); Copernicus DEM; ESA WorldCover (CC BY 4.0);
   WorldPop (CC BY 4.0). Cite them in outputs.
+
+## Census attributes
+
+Source: Uganda Bureau of Statistics, NPHC 2024 Explorer (statistics.ubos.org/nphc), subcounty profiles.
+`pct_` fields and `pop_dens` were derived for the course. A blank value means no published figure; `data_note` says why.
+
+
+**Key**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `SCCode` | UBOS 6-digit subcounty code (text): district (3) + county (1) + subcounty (2). Join key. |  |
+| `Subcounty` | Subcounty, town council or city division name (UBOS) |  |
+
+**Admin**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `CntyCode` | UBOS 4-digit county code |  |
+| `County` | County name |  |
+
+**Key**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `DCode` | UBOS 3-digit district code (text). Join key. |  |
+| `District` | District name (UBOS) |  |
+
+**Admin**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `Region` | Region (from first digit of DCode) |  |
+| `SubregCode` | UBOS subregion code |  |
+| `Subregion` | Subregion name |  |
+
+**Derived**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `area_km2` | Subcounty area, computed in UTM 36N (EPSG:32636) | km2 |
+
+**Population by sex**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `pop_total` | Total population | persons |
+| `pop_male` | Male population | persons |
+| `pop_female` | Female population | persons |
+
+**Households**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `hh_pop` | Household population | persons |
+| `households` | Number of households | households |
+| `hh_size` | Average household size | persons/household |
+
+**Age groups**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `age0_4` | Population aged 0-4 | persons |
+| `age0_17` | Population aged 0-17 | persons |
+| `age6_12` | Population aged 6-12 | persons |
+| `age13_18` | Population aged 13-18 | persons |
+| `age14_64` | Population aged 14-64 | persons |
+| `age15plus` | Population aged 15+ | persons |
+| `age15_24` | Population aged 15-24 | persons |
+| `age18_30` | Population aged 18-30 | persons |
+| `age18plus` | Population aged 18+ | persons |
+| `age60plus` | Population aged 60+ | persons |
+| `age65plus` | Population aged 65+ | persons |
+| `age80plus` | Population aged 80+ | persons |
+
+**Birth registration**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `br_cert` | Persons registered, with certificate | persons |
+| `br_notif` | Persons registered, with notification | persons |
+| `br_none` | Persons not registered | persons |
+
+**ICT**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `inet_male` | Persons aged 10+ who used internet, male | persons |
+| `inet_fem` | Persons aged 10+ who used internet, female | persons |
+| `inet_total` | Persons aged 10+ who used internet, total | persons |
+| `hh_radio` | Households owning a radio | households |
+| `hh_tv` | Households owning a television | households |
+| `hh_comp` | Households owning a computer | households |
+
+**Information sources**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `inf_radio` | Households whose main source of information is radio | households |
+| `inf_wom` | Households whose main source of information is word of mouth | households |
+| `inf_phone` | Households whose main source of information is phone calls | households |
+| `inf_tv` | Households whose main source of information is television | households |
+| `inf_meet` | Households whose main source of information is community meetings | households |
+| `inf_inet` | Households whose main source of information is internet/social media | households |
+| `inf_annc` | Households whose main source of information is community announcer | households |
+| `inf_print` | Households whose main source of information is print media | households |
+| `inf_other` | Households whose main source of information is other sources | households |
+
+**Health**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `hh_mosnet` | Households owning a mosquito net | households |
+| `p_hlthins` | Persons with health insurance | persons |
+
+**Employment**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `unemp15n` | Unemployed, aged 15+ | persons |
+| `unemp15pct` | Unemployment rate, aged 15+ | % |
+| `unemp1464n` | Unemployed, aged 14-64 | persons |
+| `unemp1464p` | Unemployment rate, aged 14-64 | % |
+| `neet1524n` | Youth not in employment, education or training (NEET), 15-24 | persons |
+| `neet1524p` | NEET rate, 15-24 | % |
+| `neet1830n` | NEET, 18-30 | persons |
+| `neet1830p` | NEET rate, 18-30 | % |
+
+**Water & sanitation**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `wat_imp` | Households using an improved main drinking water source | households |
+| `wat_unimp` | Households using an unimproved main drinking water source | households |
+| `san_imp` | Households with improved sanitation | households |
+| `san_unimp` | Households with unimproved sanitation | households |
+| `open_def` | Households practising open defecation | households |
+
+**Lighting**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `lt_grid` | Households using grid electricity for lighting | households |
+| `lt_solar` | Households using solar for lighting | households |
+| `lt_solgrid` | Households using combined solar and grid for lighting | households |
+
+**Economic**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `hh_subsist` | Households in the subsistence economy | households |
+| `hh_pdm` | Households that benefited from the Parish Development Model (PDM) | households |
+
+**Education**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `pop3_5` | Population aged 3-5 | persons |
+| `noecce3_5` | Aged 3-5 not attending early childhood care and education | persons |
+| `pop6` | Population aged 6 | persons |
+| `noprim6` | Aged 6 not started primary | persons |
+| `pop6_12` | Population aged 6-12 | persons |
+| `oos6_12` | Out of school, aged 6-12 | persons |
+| `pop13_17` | Population aged 13-17 | persons |
+| `oos13_17` | Out of school, aged 13-17 | persons |
+
+**Quality**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `data_note` | Why a row has no figures or no polygon (blank = complete) |  |
+
+**Derived**
+
+| Field | Meaning | Unit |
+|---|---|---|
+| `pop_dens` | Population density = pop_total / area_km2 | persons/km2 |
+| `pop6_17` | School-age population 6-17 = pop6_12 + pop13_17 | persons |
+| `pct_noecce` | Share of children aged 3-5 not attending early childhood education = noecce3_5 / pop3_5 | % |
+| `pct_noprm6` | Share of 6-year-olds who have not started primary = noprim6 / pop6 | % |
+| `pct_oos612` | Share of children aged 6-12 out of school = oos6_12 / pop6_12 | % |
+| `pct_oos131` | Share of children aged 13-17 out of school = oos13_17 / pop13_17 | % |
+| `pct_age0_4` | Share of population aged 0-4 | % |
+| `pct_watimp` | Share of households with improved drinking water = wat_imp / households | % |
+| `pct_sanimp` | Share of households with improved sanitation = san_imp / households | % |
+| `pct_grid` | Share of households lighting with grid electricity | % |
+| `pct_subsis` | Share of households in subsistence economy | % |
