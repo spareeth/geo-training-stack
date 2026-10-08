@@ -35,12 +35,14 @@ export function withCode(url, code) {
  */
 export function makeFetch(originalFetch, getConfig, origin) {
   return function remoteSidecarFetch(input, init) {
-    const { server, code } = getConfig() || {};
+    const { server, code, metres = true } = getConfig() || {};
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input?.url;
     const target = rewriteSidecarUrl(url, origin, server);
     if (!target) return originalFetch(input, init);
     const headers = new Headers(init?.headers || (typeof input === "object" && input?.headers) || undefined);
     if (code) headers.set("X-Access-Code", code);
+    // Measure in metres: the server reprojects lat/lon inputs of Whitebox jobs to UTM.
+    if (metres && /\/sidecar\/whitebox\/run(\?|$)/.test(target)) headers.set("X-Auto-Project", "utm");
     if (typeof input === "object" && !(input instanceof URL) && input) {
       return originalFetch(new Request(target, input), { ...init, headers });
     }

@@ -65,8 +65,15 @@ Whitebox **Zonal Statistics** in the Whitebox Toolbox also works, but it takes t
   cannot be started from GeoLibre's own dialog on the web (desktop only). Whitebox Toolbox tools,
   which cover the same operations, do run on the server. The plugin's Zonal statistics form is the
   route for zonal statistics with polygon zones.
-- **Units.** Vector tools measure in the layer's CRS: zones in latitude/longitude give areas in
-  square degrees. Reproject to a projected CRS (e.g. UTM) first for m² / metres.
+- **Units: automatic.** Whitebox measures in the units of the data's coordinates, so latitude/longitude
+  data would give areas in square degrees. With the plugin's **Measure in metres** option (on by
+  default) the server reprojects lat/lon vector inputs and geographic rasters of each Whitebox job to
+  the local UTM zone (picked from the data's centre), so areas come out in m² and lengths/distances
+  in metres (e.g. a buffer distance of 500 means 500 m). Results return to the map in lat/lon,
+  through GeoLibre's own output layer and the plugin's **Add to map**; raster outputs stay in UTM
+  (they display correctly). Downloads are the raw files: vector results of these jobs are in UTM.
+  Data spanning several UTM zones (a whole large country) is measured in the zone of its centre,
+  with small distortion towards the edges. Untick the option to keep the data's own CRS.
 - **Image fix.** The published GeoLibre image lacks `contourpy`, which its sidecar's raster runtime
   needs; `Dockerfile.geolibre` adds it. Remove it once the upstream image includes it.
 - **Shared folder.** Everyone with the access code sees the same `/data`. Ask participants to prefix

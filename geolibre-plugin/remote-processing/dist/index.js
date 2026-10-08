@@ -36,12 +36,14 @@ function withCode(url, code) {
  */
 function makeFetch(originalFetch, getConfig, origin) {
   return function remoteSidecarFetch(input, init) {
-    const { server, code } = getConfig() || {};
+    const { server, code, metres = true } = getConfig() || {};
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input?.url;
     const target = rewriteSidecarUrl(url, origin, server);
     if (!target) return originalFetch(input, init);
     const headers = new Headers(init?.headers || (typeof input === "object" && input?.headers) || undefined);
     if (code) headers.set("X-Access-Code", code);
+    // Measure in metres: the server reprojects lat/lon inputs of Whitebox jobs to UTM.
+    if (metres && /\/sidecar\/whitebox\/run(\?|$)/.test(target)) headers.set("X-Auto-Project", "utm");
     if (typeof input === "object" && !(input instanceof URL) && input) {
       return originalFetch(new Request(target, input), { ...init, headers });
     }
@@ -153,6 +155,8 @@ function createPanel(app) {
   // ---- connection ----
   const server = el("input", { type: "url", placeholder: "https://sidecar.example.org", value: config.server || "" });
   const code = el("input", { type: "password", placeholder: "Access code from your trainer", value: config.code || "" });
+  const metres = el("input", { type: "checkbox", checked: config.metres !== false });
+  metres.addEventListener("change", () => { config = { ...config, metres: metres.checked }; saveConfig(config); });
   const status = el("p", { class: "rp-status" }, config.server ? "Checking..." : "Not connected: tools run in the browser.");
 
   async function check() {
@@ -174,7 +178,7 @@ function createPanel(app) {
 
   const save = el("button", { type: "button", class: "rp-primary" }, "Save and connect");
   save.addEventListener("click", async () => {
-    config = { server: normalizeServer(server.value), code: code.value.trim() };
+    config = { server: normalizeServer(server.value), code: code.value.trim(), metres: metres.checked };
     server.value = config.server;
     saveConfig(config);
     if (await check()) refresh();
@@ -221,9 +225,8 @@ function createPanel(app) {
         const opts = Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min ? { rescaleMin: d.min, rescaleMax: d.max } : {};
         app.addCogLayer?.(f.name, withCode(`${config.server}${d.url}`, config.code), { colormap: "viridis", ...opts });
       } else {
-        const r = await serverFetch(`/data/${encodeURIComponent(f.name)}`);
-        if (!r.ok) throw new Error(`could not read ${f.name}`);
-        app.addGeoJsonLayer?.(f.name, await r.json());
+        // Vectors come back in lat/lon (results of auto-projected jobs are converted from UTM).
+        app.addGeoJsonLayer?.(f.name, await serverJson(`/files/${encodeURIComponent(f.name)}/geojson`));
       }
       notice(`Added ${f.name}`);
     } catch (e) { notice(e.message, true); }
@@ -327,6 +330,8 @@ function createPanel(app) {
     el("h4", {}, "Processing server"), el("label", { class: "rp-field" }, el("span", {}, "Server"), server),
     el("label", { class: "rp-field" }, el("span", {}, "Access code"), code),
     el("div", { class: "rp-row" }, save, disconnect), status,
+    el("label", { class: "rp-check", title: "Whitebox tools measure in the data's units. With this on, data in latitude/longitude is reprojected to the local UTM zone on the server, so areas are in m², lengths and distances in metres. Results return to the map in latitude/longitude." },
+      metres, " Measure in metres (reproject lat/lon data to UTM automatically)"),
     el("details", { class: "rp-help", open: true }, el("summary", {}, "How to run a tool on the server"),
       el("ol", {},
         el("li", {}, "Upload your rasters below (vector layers on the map need no upload)."),

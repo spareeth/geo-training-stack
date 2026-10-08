@@ -31,6 +31,14 @@
 
 	@authorized expression `{http.request.header.X-Access-Code} == "{$ACCESS_CODE}" || {http.request.uri.query.code} == "{$ACCESS_CODE}"`
 	handle @authorized {
+		# Whitebox jobs go through the file service first: it reprojects lat/lon inputs to UTM
+		# when the plugin asks for it (X-Auto-Project), then forwards them to the sidecar.
+		handle /sidecar/whitebox/run {
+			reverse_proxy files:8000
+		}
+		handle /sidecar/whitebox/output {
+			reverse_proxy files:8000
+		}
 		handle /sidecar/* {
 			reverse_proxy geolibre:80
 		}

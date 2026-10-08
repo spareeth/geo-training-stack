@@ -32,6 +32,16 @@ test("makeFetch rewrites sidecar calls, adds the code, passes others through", a
   assert.deepEqual(calls, [["https://sc/sidecar/whitebox/run", "k"], ["https://tiles.example/x.png", null]]);
 });
 
+test("makeFetch asks for UTM on Whitebox runs unless metres is off", async () => {
+  const seen = [];
+  const orig = async (u, init) => { seen.push([u, init.headers.get("X-Auto-Project")]); };
+  const o = "https://web.geolibre.app";
+  await core.makeFetch(orig, () => ({ server: "https://sc", code: "k" }), o)(`${o}/sidecar/whitebox/run`, {});
+  await core.makeFetch(orig, () => ({ server: "https://sc", code: "k" }), o)(`${o}/sidecar/whitebox/status`, {});
+  await core.makeFetch(orig, () => ({ server: "https://sc", code: "k", metres: false }), o)(`${o}/sidecar/whitebox/run`, {});
+  assert.deepEqual(seen.map((s) => s[1]), ["utm", null, null]);
+});
+
 test("fileKind", () => {
   assert.equal(core.fileKind("dem.TIF"), "raster");
   assert.equal(core.fileKind("roads.geojson"), "vector");

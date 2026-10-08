@@ -19,7 +19,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
 MAX_UPLOAD = int(os.environ.get("MAX_UPLOAD_MB", "500")) * 1024 * 1024
@@ -91,6 +91,7 @@ def delete(name: str):
         raise HTTPException(404, "no such file")
     path.unlink()
     shutil.rmtree(DATA / DISPLAY_DIR / path.stem, ignore_errors=True)
+    (DATA / ".crs" / (path.name + ".json")).unlink(missing_ok=True)
     return {"deleted": path.name}
 
 
@@ -120,6 +121,212 @@ def display(name: str):
         band = ds.read(1, masked=True, out_shape=(1, min(ds.height, 512), min(ds.width, 512)))
         stats = {"min": float(band.min()), "max": float(band.max())} if band.count() else {}
     return {"url": f"/data/{DISPLAY_DIR}/{src.stem}/{out.name}", **stats}
+
+
+# ---------------- automatic projection for Whitebox jobs ----------------
+# Whitebox measures in the units of the data's coordinates, so latitude/longitude inputs give areas in
+# square degrees and distances in degrees. When the plugin sends "X-Auto-Project: utm", jobs are
+# intercepted here (Caddy routes POST /sidecar/whitebox/run to this service): geographic vector inputs
+# and rasters are reprojected to the local UTM zone, the job is forwarded to the sidecar, and the
+# projection of each output is recorded so /files/{name}/display can return vectors in lat/lon.
+
+import json
+import math
+import urllib.error
+import urllib.request
+
+SIDECAR = os.environ.get("SIDECAR_URL", "http://geolibre:80/sidecar")
+CRS_DIR = ".crs"
+UTM_DIR = ".utm"
+_tool_kinds: dict = {}
+
+
+def utm_epsg(lon: float, lat: float) -> int:
+    zone = min(60, max(1, int(math.floor((lon + 180) / 6)) + 1))
+    return (32600 if lat >= 0 else 32700) + zone
+
+
+def param_kinds(tool_id: str, tool: dict | None) -> dict:
+    """Parameter name -> kind (raster_in, vector_in, raster_out, vector_out, ...)."""
+    if tool and tool.get("params"):
+        return {p["name"]: p.get("kind", "") for p in tool["params"]}
+    if not _tool_kinds:
+        with urllib.request.urlopen(f"{SIDECAR}/whitebox/tools", timeout=60) as r:
+            body = json.load(r)
+        for t in body if isinstance(body, list) else body.get("tools", []):
+            _tool_kinds[t["id"]] = {p["name"]: p.get("kind", "") for p in t.get("params", [])}
+    return _tool_kinds.get(tool_id, {})
+
+
+def _geojson_center(gj: dict):
+    import geopandas as gpd
+
+    gdf = gpd.GeoDataFrame.from_features(gj.get("features", []), crs=4326)
+    if gdf.empty:
+        return None
+    x0, y0, x1, y1 = gdf.total_bounds
+    return (x0 + x1) / 2, (y0 + y1) / 2
+
+
+def _is_lonlat_geojson(gj: dict) -> bool:
+    name = (((gj.get("crs") or {}).get("properties") or {}).get("name") or "").upper()
+    return not name or "4326" in name or "CRS84" in name
+
+
+def _reproject_geojson(gj: dict, epsg: int) -> dict:
+    import geopandas as gpd
+
+    gdf = gpd.GeoDataFrame.from_features(gj.get("features", []), crs=4326).to_crs(epsg)
+    out = json.loads(gdf.to_json(drop_id=True))
+    out["crs"] = {"type": "name", "properties": {"name": f"urn:ogc:def:crs:EPSG::{epsg}"}}
+    return out
+
+
+def _raster_geographic(path: str):
+    import rasterio
+
+    with rasterio.open(path) as ds:
+        if ds.crs and ds.crs.is_geographic:
+            from rasterio.warp import transform_bounds
+            x0, y0, x1, y1 = transform_bounds(ds.crs, "EPSG:4326", *ds.bounds)
+            return (x0 + x1) / 2, (y0 + y1) / 2
+    return None
+
+
+def _warp_to_utm(path: str, epsg: int) -> str:
+    """Cached UTM copy of a geographic raster (refreshed when the source changes)."""
+    import rasterio
+    from rasterio.warp import Resampling, calculate_default_transform, reproject
+
+    src_path = Path(path)
+    out = DATA / UTM_DIR / f"{src_path.stem}-{epsg}-{int(src_path.stat().st_mtime)}.tif"
+    if out.exists():
+        return str(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with rasterio.open(path) as src:
+        transform, width, height = calculate_default_transform(src.crs, f"EPSG:{epsg}", src.width, src.height, *src.bounds)
+        profile = src.profile.copy()
+        profile.update(crs=f"EPSG:{epsg}", transform=transform, width=width, height=height, driver="GTiff",
+                       tiled=True, blockxsize=256, blockysize=256, compress="deflate")
+        with rasterio.open(out, "w", **profile) as dst:
+            for b in range(1, src.count + 1):
+                reproject(rasterio.band(src, b), rasterio.band(dst, b), resampling=Resampling.bilinear)
+    return str(out)
+
+
+def auto_project(req: dict) -> tuple[dict, int | None, list[str]]:
+    """Reproject geographic inputs of a Whitebox request to UTM. Returns the new request, the EPSG
+    used (None if nothing was geographic) and the notes for the job log."""
+    kinds = param_kinds(req.get("tool_id", ""), req.get("tool"))
+    params = dict(req.get("parameters") or {})
+    layers = dict(req.get("layer_inputs") or {})
+    center = None
+    for value in layers.values():
+        for layer in value if isinstance(value, list) else [value]:
+            gj = (layer or {}).get("geojson")
+            if isinstance(gj, dict) and _is_lonlat_geojson(gj):
+                center = center or _geojson_center(gj)
+    raster_inputs = [k for k, v in params.items() if kinds.get(k) == "raster_in" and isinstance(v, str) and v.startswith("/data/")]
+    geo_rasters = {}
+    for k in raster_inputs:
+        if os.path.exists(params[k]):
+            c = _raster_geographic(params[k])
+            if c:
+                geo_rasters[k] = c
+                center = center or c
+    if center is None:
+        return req, None, []
+    epsg = utm_epsg(*center)
+    notes = []
+    for name, value in layers.items():
+        items = value if isinstance(value, list) else [value]
+        new = []
+        for layer in items:
+            gj = (layer or {}).get("geojson")
+            if isinstance(gj, dict) and _is_lonlat_geojson(gj):
+                layer = {**layer, "geojson": _reproject_geojson(gj, epsg)}
+                notes.append(f"{name}: reprojected to EPSG:{epsg}")
+            new.append(layer)
+        layers[name] = new if isinstance(value, list) else new[0]
+    for k in geo_rasters:
+        params[k] = _warp_to_utm(params[k], epsg)
+        notes.append(f"{k}: reprojected to EPSG:{epsg}")
+    return {**req, "parameters": params, "layer_inputs": layers}, epsg, notes
+
+
+def record_output_crs(req: dict, epsg: int) -> None:
+    kinds = param_kinds(req.get("tool_id", ""), req.get("tool"))
+    for k, v in (req.get("parameters") or {}).items():
+        if kinds.get(k, "").endswith("_out") and isinstance(v, str) and v.startswith("/data/"):
+            meta = DATA / CRS_DIR / (Path(v).name + ".json")
+            meta.parent.mkdir(parents=True, exist_ok=True)
+            meta.write_text(json.dumps({"epsg": epsg}))
+
+
+@app.post("/sidecar/whitebox/run")
+async def whitebox_run(request: Request):
+    raw = await request.body()
+    body = raw
+    if request.headers.get("x-auto-project", "").lower() == "utm":
+        try:
+            req = json.loads(raw)
+            new, epsg, _ = auto_project(req)
+            if epsg:
+                record_output_crs(new, epsg)
+                body = json.dumps(new).encode()
+        except HTTPException:
+            raise
+        except Exception as e:  # never block a job because of the projection helper
+            print(f"auto-project skipped: {e}", flush=True)
+    fwd = urllib.request.Request(f"{SIDECAR}/whitebox/run", data=body, method="POST",
+                                 headers={"Content-Type": request.headers.get("content-type", "application/json")})
+    try:
+        with urllib.request.urlopen(fwd, timeout=600) as r:
+            return Response(r.read(), status_code=r.status, media_type=r.headers.get("content-type"))
+    except urllib.error.HTTPError as e:
+        return Response(e.read(), status_code=e.code, media_type=e.headers.get("content-type"))
+
+
+def vector_display(src: Path) -> dict:
+    """GeoJSON in lat/lon for the map. Outputs of auto-projected jobs carry their recorded CRS."""
+    import geopandas as gpd
+
+    meta = DATA / CRS_DIR / (src.name + ".json")
+    gdf = gpd.read_file(src)
+    if meta.exists():
+        gdf = gdf.set_crs(json.loads(meta.read_text())["epsg"], allow_override=True)
+    elif gdf.crs is None:
+        gdf = gdf.set_crs(4326)
+    return json.loads(gdf.to_crs(4326).to_json(drop_id=True))
+
+
+@app.get("/sidecar/whitebox/output")
+def whitebox_output(path: str):
+    """GeoLibre loads vector outputs of Whitebox jobs through this sidecar route. Outputs of
+    auto-projected jobs are in UTM: return them in lat/lon so the layer lands in the right place."""
+    p = Path(path)
+    if p.parent == DATA and (DATA / CRS_DIR / (p.name + ".json")).exists() and p.exists():
+        try:
+            return vector_display(p)
+        except Exception as e:
+            print(f"auto-project output conversion skipped: {e}", flush=True)
+    from urllib.parse import quote
+    try:
+        with urllib.request.urlopen(f"{SIDECAR}/whitebox/output?path={quote(path)}", timeout=120) as r:
+            return Response(r.read(), status_code=r.status, media_type=r.headers.get("content-type"))
+    except urllib.error.HTTPError as e:
+        return Response(e.read(), status_code=e.code, media_type=e.headers.get("content-type"))
+
+
+@app.get("/files/{name}/geojson")
+def geojson_for_map(name: str):
+    src = target(name)
+    if not src.exists():
+        raise HTTPException(404, "no such file")
+    try:
+        return vector_display(src)
+    except Exception as e:
+        raise HTTPException(422, f"could not read {src.name} as vector data: {e}")
 
 
 @app.get("/health")
