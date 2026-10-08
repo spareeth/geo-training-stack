@@ -202,7 +202,7 @@ function createPanel(app) {
         const url = withCode(`${config.server}${d.url}`, config.code);
         if (d.rgb) {
           // Land cover in WorldCover codes: the server sends a copy painted in the official colours.
-          app.addCogLayer?.(f.name, url, { bands: "1,2,3", nodata: 0 });
+          app.addCogLayer?.(f.name, url, { bands: "1,2,3", nodata: 0, rescaleMin: 0, rescaleMax: 255 });
           showLegend(f.name, { classes: d.legend });
         } else {
           const opts = Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min ? { rescaleMin: d.min, rescaleMax: d.max } : {};
