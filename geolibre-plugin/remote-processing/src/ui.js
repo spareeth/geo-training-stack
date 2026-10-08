@@ -201,7 +201,8 @@ function createPanel(app) {
 
   const myList = el("div", {});
   const sharedList = el("div", {});
-  const sharedBlock = el("section", { class: "rp-card", hidden: true }, el("h3", {}, "Shared course data ", el("small", {}, "read-only")), sharedList);
+  const sharedBlock = el("details", { class: "rp-card rp-collapsible", open: true, hidden: true },
+    el("summary", {}, el("h3", {}, "Shared course data ", el("small", {}, "read-only"))), sharedList);
 
   async function refresh() {
     if (!config.server) {
@@ -295,7 +296,7 @@ function createPanel(app) {
     el("div", { class: "rp-folderbar" },
       el("span", {}, "Your folder ", el("code", {}, `/data/${config.uid}`)),
       el("button", { type: "button", class: "rp-small", onclick: refresh }, "↻ Refresh")),
-    el("section", { class: "rp-card" }, el("h3", {}, "My data"), myList),
+    el("details", { class: "rp-card rp-collapsible", open: true }, el("summary", {}, el("h3", {}, "My data")), myList),
     sharedBlock,
     el("section", { class: "rp-card" }, el("h3", {}, "Upload"),
       el("p", { class: "rp-muted" }, "GeoTIFF rasters you want to process. Vector layers on the map need no upload."),
