@@ -206,7 +206,7 @@ html { scroll-behavior: smooth; }
         <li>
           <div class="step-title">Install the Remote Processing plugin</div>
           <div class="where"><span class="menu">Settings</span><span class="sep">›</span><span class="menu">Manage Plugins</span><span class="sep">›</span><span class="menu">Settings</span> tab</div>
-          <p>Under <strong>Manifest URLs</strong> paste the address below and click <span class="btn-name">Add</span>. Close the dialog. The panel title should show version 0.4.0 or later; if you installed an older version, remove the URL and add it again.</p>
+          <p>Under <strong>Manifest URLs</strong> paste the address below and click <span class="btn-name">Add</span>. Close the dialog. The panel should show version 0.5.0 or later; if you installed an older version, remove the URL and add it again.</p>
           <p><span class="copy"><code>https://geolibre.terrawatch.net/plugin/plugin.json</code><button type="button" data-copy="https://geolibre.terrawatch.net/plugin/plugin.json">Copy</button></span></p>
         </li>
         <li>
@@ -227,6 +227,7 @@ html { scroll-behavior: smooth; }
           <div class="step-title">Check the course rasters</div>
           <div class="where">Panel tab <span class="menu">Data</span><span class="sep">›</span><span class="menu">Shared course data</span><span class="sep">›</span><span class="menu">Rasters</span></div>
           <p>You should see three rasters. They are already on the server, so you do not upload them.</p>
+          <p class="why">Click <span class="btn-name">Add to map</span> to view one. A legend box appears at the bottom left of the map: a colour bar with the value range, or for land cover the WorldCover classes in their official colours. Its × removes an entry.</p>
           <div class="table-wrap" tabindex="0" role="region" aria-label="Course rasters">
             <table>
               <thead><tr><th>Raster</th><th>Contents</th></tr></thead>
@@ -681,6 +682,7 @@ html { scroll-behavior: smooth; }
           <p>Click <span class="btn-name">Add logo and download</span>. You get <code>…-logo.png</code>, the same map with the logo on a white box.</p>
         </li>
       </ol>
+      <div class="callout tip"><span class="k">Land cover legend in print</span><p>Print Layout lists layers by name only. For a map of <code>moroto_landcover_10m.tif</code>, click <span class="btn-name">Copy for print legend</span> in the map legend box, then in Print Layout tick <strong>Custom legend</strong>, choose <span class="btn-name">Import from dictionary</span> and paste.</p></div>
       <div class="callout tip"><span class="k">Why a separate step for the logo?</span><p>GeoLibre's Print Layout has no image element yet. <span class="menu">Controls</span><span class="sep">›</span><span class="menu">Image</span> can place a logo on the screen map (Image URL <span class="copy"><code>https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png</code><button type="button" data-copy='https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png'>Copy</button></span>), which is fine for screen sharing, but the print layout leaves it out. The plugin adds it to the exported PNG instead.</p></div>
 
       <div class="discuss">

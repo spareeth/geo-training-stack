@@ -53,6 +53,8 @@ school), `pct_oos131` (13–17), `pct_watimp` (improved water), `pct_grid` (grid
 `pop_dens`. All fields are explained in [Census attributes](#census-attributes) at the end.
 
 ## Before you start
+- Rasters added from the plugin (**Add to map**) get a legend box at the bottom left of the map: a
+  colour bar with the value range, or the WorldCover classes in their official colours for land cover.
 - Plugin installed and connected (see the participant guide): **Remote Processing > Server connection
   and files**, server address and access code, **Save and connect**. Keep **Measure in metres** ticked.
 - In every Whitebox tool: **untick "Run locally (WASM)"**. Leave **Output** on **Auto** or type a short
@@ -241,6 +243,9 @@ cover and people does a 1 km corridor on each side cross?
 6. Plugin **Data > Logo on a printed map**: choose the exported PNG, leave Logo empty (IsDB logo),
    corner Bottom right, width 16 %, **Add logo and download**. You get `…-logo.png`.
 
+For a land-cover map, click **Copy for print legend** in the map legend box, then in Print Layout tick
+**Custom legend** > **Import from dictionary** and paste.
+
 GeoLibre's Print Layout has no image element yet. **Controls > Image** (URL
 `https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png`) shows a logo on the screen map, but
 the print layout leaves it out, hence step 6.
@@ -257,7 +262,7 @@ the print layout leaves it out, hence step 6.
 - **Run locally (WASM)** must be unticked in every Whitebox dialog; this is the most common mistake.
 - **Reclass values** use the classic Whitebox format `new;from;to;new;from;to...` (semicolons). Whitebox
   comparison tools (Greater Than, Equal To...) need two rasters, so Reclass is the way to threshold.
-- **Plugin version:** class areas and the logo tool need Remote Processing 0.4.0 or later. Anyone who
+- **Plugin version:** class areas and the logo tool need Remote Processing 0.5.0 or later (map legend). Anyone who
   installed earlier must remove the plugin URL and add it again.
 - **Buffers of real roads:** use GeoLibre's own Buffer (step 3.2). Whitebox *Buffer Vector* returns
   wrong corridors for long, winding lines (fine for polygons and simple lines).
