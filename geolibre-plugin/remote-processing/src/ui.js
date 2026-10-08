@@ -314,6 +314,50 @@ function createPanel(app) {
   });
   setInterval(() => { if (root.isConnected && document.activeElement !== zZones) fillZonalPickers(); }, 4000);
 
+  // ---- logo on an exported map (GeoLibre's Print Layout has no image element) ----
+  const lMap = el("input", { type: "file", accept: "image/png,image/jpeg" });
+  const lLogo = el("input", { type: "file", accept: "image/png,image/jpeg,image/svg+xml" });
+  const lCorner = el("select", {}, ...[["br", "Bottom right"], ["bl", "Bottom left"], ["tr", "Top right"], ["tl", "Top left"]]
+    .map(([v, t]) => el("option", { value: v }, t)));
+  const lSize = el("input", { type: "number", min: "5", max: "40", value: "16" });
+  const lStatus = el("p", { class: "rp-muted" });
+  const lRun = el("button", { type: "button", class: "rp-primary" }, "Add logo and download");
+  lRun.addEventListener("click", async () => {
+    const file = lMap.files?.[0];
+    if (!file) { notice("Choose the PNG you exported from Print Layout", true); return; }
+    lRun.disabled = true;
+    try {
+      const map = await createImageBitmap(file);
+      let logoBlob = lLogo.files?.[0];
+      if (!logoBlob) {
+        const r = await serverFetch("/plugin/assets/isdb-logo.png");
+        if (!r.ok) throw new Error("Could not load the IsDB logo from the server");
+        logoBlob = await r.blob();
+      }
+      const logo = await createImageBitmap(logoBlob);
+      const canvas = el("canvas", {});
+      canvas.width = map.width; canvas.height = map.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(map, 0, 0);
+      const w = Math.round(map.width * (Math.min(40, Math.max(5, Number(lSize.value) || 16)) / 100));
+      const h = Math.round(w * logo.height / logo.width);
+      const pad = Math.round(map.width * 0.02);
+      const x = lCorner.value.endsWith("r") ? map.width - w - pad : pad;
+      const y = lCorner.value.startsWith("b") ? map.height - h - pad : pad;
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillRect(x - pad / 3, y - pad / 3, w + 2 * pad / 3, h + 2 * pad / 3);
+      ctx.drawImage(logo, x, y, w, h);
+      const out = await new Promise((res) => canvas.toBlob(res, "image/png"));
+      const a = el("a", { href: URL.createObjectURL(out), download: file.name.replace(/\.(png|jpe?g)$/i, "") + "-logo.png" });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      lStatus.textContent = "Downloaded the map with the logo.";
+    } catch (e) {
+      lStatus.textContent = e.message;
+      notice(e.message, true);
+    } finally { lRun.disabled = false; }
+  });
+
   const menu = (...parts) => el("span", { class: "rp-menu" }, parts.join(" › "));
   const ui = (text) => el("b", {}, text);
 
@@ -336,7 +380,15 @@ function createPanel(app) {
       el("div", { class: "rp-two" }, el("label", { class: "rp-field" }, el("span", {}, "Band"), zBand),
         el("label", { class: "rp-field" }, el("span", {}, "Field prefix"), zPrefix)),
       el("label", { class: "rp-check" }, zCsv, " Also download the table as CSV"),
-      el("div", { class: "rp-row" }, zRun), zStatus));
+      el("div", { class: "rp-row" }, zRun), zStatus),
+    el("details", { class: "rp-card rp-collapsible" },
+      el("summary", {}, el("h3", {}, "Logo on a printed map")),
+      el("p", { class: "rp-muted" }, "Export a PNG from Project › Print Layout, choose it here, and download it with a logo in one corner. The IsDB logo is used unless you choose your own."),
+      el("label", { class: "rp-field" }, el("span", {}, "Exported map (PNG)"), lMap),
+      el("label", { class: "rp-field" }, el("span", {}, "Logo (optional, default IsDB)"), lLogo),
+      el("div", { class: "rp-two" }, el("label", { class: "rp-field" }, el("span", {}, "Corner"), lCorner),
+        el("label", { class: "rp-field" }, el("span", {}, "Logo width (% of page)"), lSize)),
+      el("div", { class: "rp-row" }, lRun), lStatus));
 
   // ---- Settings & help tab ----
   const helpTab = el("div", { class: "rp-tab-body" },
