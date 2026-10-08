@@ -211,11 +211,6 @@ def _geojson_center(gj: dict):
     return (x0 + x1) / 2, (y0 + y1) / 2
 
 
-def _is_lonlat_geojson(gj: dict) -> bool:
-    name = (((gj.get("crs") or {}).get("properties") or {}).get("name") or "").upper()
-    return not name or "4326" in name or "CRS84" in name
-
-
 def _reproject_geojson(gj: dict, epsg: int) -> dict:
     import geopandas as gpd
 
@@ -258,44 +253,115 @@ def _warp_to_utm(path: str, epsg: int) -> str:
     return str(out)
 
 
-def auto_project(req: dict) -> tuple[dict, int | None, list[str]]:
-    """Reproject geographic inputs of a Whitebox request to UTM. Returns the new request, the EPSG
-    used (None if nothing was geographic) and the notes for the job log."""
+OUR_DATA_URL = re.compile(r"^https?://[^/]+/data/([^?#]+)")
+
+
+def _server_path(value: str) -> str:
+    """A map layer from this server (https://<server>/data/...?...) -> the file on the server.
+    Map-display copies (/data/.display/<owner>/<stem>/<n>.tif, web-mercator COGs) map back to the
+    original file, so tools read the data the participant uploaded, not the display copy."""
+    from urllib.parse import unquote
+
+    m = OUR_DATA_URL.match(value)
+    if not m:
+        return value
+    rel = Path(unquote(m.group(1)))
+    if rel.parts and rel.parts[0] == DISPLAY_DIR and len(rel.parts) >= 4:
+        owner, stem = rel.parts[1], rel.parts[2]
+        folder = DATA if owner == "_shared" else DATA / owner
+        for ext in (".tif", ".tiff", ".TIF", ".TIFF"):
+            if (folder / f"{stem}{ext}").exists():
+                return str(folder / f"{stem}{ext}")
+    return str(DATA / rel)
+
+
+def _geojson_epsg(gj: dict) -> int | None:
+    """EPSG of a GeoJSON's legacy "crs" member; None when absent (RFC 7946: lat/lon)."""
+    name = ((((gj.get("crs") or {}).get("properties") or {}).get("name")) or "").upper()
+    if "CRS84" in name:
+        return 4326
+    m = re.search(r"EPSG:*(\d+)", name)
+    return int(m.group(1)) if m else None
+
+
+def _with_crs(gj: dict, epsg: int) -> dict:
+    return {**gj, "crs": {"type": "name", "properties": {"name": f"urn:ogc:def:crs:EPSG::{epsg}"}}}
+
+
+def _vector_gpkg(gj: dict, key: str, epsg: int, reproject: bool) -> str:
+    """GeoPackage copy of GeoJSON data with its CRS set (Whitebox reads the CRS of GeoPackage and
+    shapefile inputs, not GeoJSON's): lat/lon data either reprojected to epsg or declared as it is.
+    Cached by content, next to the UTM rasters."""
+    import hashlib
+
+    import geopandas as gpd
+
+    digest = hashlib.sha1(json.dumps(gj, sort_keys=True).encode()).hexdigest()[:12]
+    out = DATA / UTM_DIR / f"{key}-{epsg}-{digest}.gpkg"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        declared = _geojson_epsg(gj) or 4326
+        gdf = gpd.GeoDataFrame.from_features(gj.get("features", []), crs=declared)
+        if reproject and declared != epsg:
+            gdf = gdf.to_crs(epsg)
+        tmp = out.with_suffix(".tmp.gpkg")
+        gdf.to_file(tmp, driver="GPKG")
+        os.replace(tmp, out)
+    return str(out)
+
+
+def prepare_request(req: dict, utm: bool) -> tuple[dict, int | None]:
+    """Make a Whitebox request runnable on the server:
+    - raster/vector inputs that are map layers from this server become the server files;
+    - GeoJSON inputs (map layers sent with the job, or files) without a declared CRS are declared
+      lat/lon, as GeoJSON is by definition;
+    - with utm=True ("Measure in metres"), lat/lon vectors and geographic rasters are reprojected to
+      the UTM zone of the data's centre, so every input of the job is in the same metric CRS.
+    Returns the new request and the EPSG used for UTM (None if no reprojection happened)."""
     kinds = param_kinds(req.get("tool_id", ""), req.get("tool"))
     params = dict(req.get("parameters") or {})
     layers = dict(req.get("layer_inputs") or {})
+    for k, v in list(params.items()):
+        if kinds.get(k, "").endswith("_in") and isinstance(v, str):
+            params[k] = _server_path(v)
+    vector_paths = [k for k, v in params.items() if kinds.get(k) == "vector_in" and isinstance(v, str)
+                    and v.startswith("/data/") and v.lower().endswith((".geojson", ".json")) and os.path.exists(v)]
+    raster_paths = [k for k, v in params.items() if kinds.get(k) == "raster_in" and isinstance(v, str)
+                    and v.startswith("/data/") and os.path.exists(v)]
+
+    vector_json = {k: json.loads(Path(params[k]).read_text()) for k in vector_paths}
     center = None
-    for value in layers.values():
-        for layer in value if isinstance(value, list) else [value]:
-            gj = (layer or {}).get("geojson")
-            if isinstance(gj, dict) and _is_lonlat_geojson(gj):
+    if utm:
+        for value in layers.values():
+            for layer in value if isinstance(value, list) else [value]:
+                gj = (layer or {}).get("geojson")
+                if isinstance(gj, dict) and _geojson_epsg(gj) in (None, 4326):
+                    center = center or _geojson_center(gj)
+        for k, gj in vector_json.items():
+            if _geojson_epsg(gj) in (None, 4326):
                 center = center or _geojson_center(gj)
-    raster_inputs = [k for k, v in params.items() if kinds.get(k) == "raster_in" and isinstance(v, str) and v.startswith("/data/")]
-    geo_rasters = {}
-    for k in raster_inputs:
-        if os.path.exists(params[k]):
-            c = _raster_geographic(params[k])
-            if c:
-                geo_rasters[k] = c
-                center = center or c
-    if center is None:
-        return req, None, []
-    epsg = utm_epsg(*center)
-    notes = []
-    for name, value in layers.items():
-        items = value if isinstance(value, list) else [value]
-        new = []
-        for layer in items:
-            gj = (layer or {}).get("geojson")
-            if isinstance(gj, dict) and _is_lonlat_geojson(gj):
-                layer = {**layer, "geojson": _reproject_geojson(gj, epsg)}
-                notes.append(f"{name}: reprojected to EPSG:{epsg}")
-            new.append(layer)
-        layers[name] = new if isinstance(value, list) else new[0]
-    for k in geo_rasters:
-        params[k] = _warp_to_utm(params[k], epsg)
-        notes.append(f"{k}: reprojected to EPSG:{epsg}")
-    return {**req, "parameters": params, "layer_inputs": layers}, epsg, notes
+        geo_rasters = {k: c for k in raster_paths if (c := _raster_geographic(params[k]))}
+        center = center or next(iter(geo_rasters.values()), None)
+    epsg = utm_epsg(*center) if center else None
+
+    # Vector inputs go to Whitebox as GeoPackages with a CRS: single map layers sent with the job
+    # become file parameters, GeoJSON file parameters are converted.
+    for name, value in list(layers.items()):
+        if isinstance(value, list) or not isinstance((value or {}).get("geojson"), dict):
+            continue  # lists of layers keep the sidecar's own handling
+        gj = value["geojson"]
+        target = epsg or _geojson_epsg(gj) or 4326
+        params[name] = _vector_gpkg(gj, f"layer-{re.sub(r'[^A-Za-z0-9_-]', '-', name)}", target, reproject=bool(epsg))
+        del layers[name]
+    for k, gj in vector_json.items():
+        key = "__".join(Path(params[k]).resolve().relative_to(DATA.resolve()).with_suffix("").parts)
+        target = epsg or _geojson_epsg(gj) or 4326
+        params[k] = _vector_gpkg(gj, key, target, reproject=bool(epsg))
+    if epsg:
+        for k in raster_paths:
+            if _raster_geographic(params[k]):
+                params[k] = _warp_to_utm(params[k], epsg)
+    return {**req, "parameters": params, "layer_inputs": layers}, epsg
 
 
 def record_output_crs(req: dict, epsg: int) -> None:
@@ -311,17 +377,16 @@ def record_output_crs(req: dict, epsg: int) -> None:
 async def whitebox_run(request: Request):
     raw = await request.body()
     body = raw
-    if request.headers.get("x-auto-project", "").lower() == "utm":
-        try:
-            req = json.loads(raw)
-            new, epsg, _ = auto_project(req)
-            if epsg:
-                record_output_crs(new, epsg)
-                body = json.dumps(new).encode()
-        except HTTPException:
-            raise
-        except Exception as e:  # never block a job because of the projection helper
-            print(f"auto-project skipped: {e}", flush=True)
+    try:
+        req = json.loads(raw)
+        new, epsg = prepare_request(req, utm=request.headers.get("x-auto-project", "").lower() == "utm")
+        if epsg:
+            record_output_crs(new, epsg)
+        body = json.dumps(new).encode()
+    except HTTPException:
+        raise
+    except Exception as e:  # never block a job because of the preparation step
+        print(f"request preparation skipped: {e}", flush=True)
     fwd = urllib.request.Request(f"{SIDECAR}/whitebox/run", data=body, method="POST",
                                  headers={"Content-Type": request.headers.get("content-type", "application/json")})
     try:
@@ -332,15 +397,19 @@ async def whitebox_run(request: Request):
 
 
 def vector_display(src: Path) -> dict:
-    """GeoJSON in lat/lon for the map. Outputs of auto-projected jobs carry their recorded CRS."""
+    """GeoJSON in lat/lon for the map. Whitebox writes GeoJSON outputs in lat/lon when it knows the
+    input CRS, but other outputs of auto-projected jobs can be in UTM: use the recorded CRS only when
+    the coordinates are not valid lat/lon."""
     import geopandas as gpd
 
-    meta = crs_meta(src)
     gdf = gpd.read_file(src)
-    if meta.exists():
-        gdf = gdf.set_crs(json.loads(meta.read_text())["epsg"], allow_override=True)
-    elif gdf.crs is None:
-        gdf = gdf.set_crs(4326)
+    if gdf.crs is None or (gdf.crs.to_epsg() == 4326 and crs_meta(src).exists()):
+        x0, y0, x1, y1 = gdf.total_bounds if len(gdf) else (0, 0, 0, 0)
+        lonlat = -180 <= x0 <= x1 <= 180 and -90 <= y0 <= y1 <= 90
+        if not lonlat and crs_meta(src).exists():
+            gdf = gdf.set_crs(json.loads(crs_meta(src).read_text())["epsg"], allow_override=True)
+        else:
+            gdf = gdf.set_crs(4326, allow_override=True)
     return json.loads(gdf.to_crs(4326).to_json(drop_id=True))
 
 
