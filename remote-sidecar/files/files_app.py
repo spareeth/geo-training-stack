@@ -506,6 +506,74 @@ def geojson_for_map(name: str, request: Request, scope: str = "own"):
         raise HTTPException(422, f"could not read {src.name} as vector data: {e}")
 
 
+WORLDCOVER = {10: "tree", 20: "shrubland", 30: "grassland", 40: "cropland", 50: "builtup", 60: "bare",
+              70: "snow", 80: "water", 90: "wetland", 95: "mangrove", 100: "moss"}
+
+
+@app.post("/files/zonal-classes")
+async def zonal_classes(request: Request):
+    """Area of each class of a categorical raster (e.g. land cover) inside each zone.
+    Body: {"raster": "/data/...tif", "zones": FeatureCollection (lon/lat), "prefix": ""}.
+    Adds <prefix><class>_km2 and <prefix><class>_pct to every zone; ESA WorldCover codes get names."""
+    import numpy as np
+    import rasterio
+    from rasterio.mask import mask as rio_mask
+    from rasterio.warp import transform_geom
+
+    body = await request.json()
+    participant_dir(request)
+    raster = Path(_server_path(str(body.get("raster") or ""))).resolve()
+    if DATA.resolve() not in raster.parents or not raster.is_file():
+        raise HTTPException(400, "raster must be a file under /data")
+    feats = (body.get("zones") or {}).get("features") or []
+    if not feats:
+        raise HTTPException(400, "the zones layer has no features")
+    prefix = re.sub(r"[^A-Za-z0-9_]", "", str(body.get("prefix") or ""))[:20]
+
+    with rasterio.open(raster) as src:
+        if src.crs is None:
+            raise HTTPException(422, "the raster has no CRS")
+        if src.dtypes[0].startswith("float"):
+            raise HTTPException(422, "class areas need an integer (categorical) raster, e.g. land cover")
+        geographic = src.crs.is_geographic
+        per_zone, seen = [], set()
+        for f in feats:
+            counts = {}
+            geom = (f or {}).get("geometry")
+            if geom:
+                try:
+                    img, tr = rio_mask(src, [transform_geom("EPSG:4326", src.crs, geom)], crop=True, filled=False, indexes=1)
+                    valid = ~np.ma.getmaskarray(img)
+                    data = np.ma.getdata(img)
+                    if geographic:  # cell area shrinks with latitude
+                        rows = np.arange(img.shape[0])
+                        lat = np.radians(tr.f + (rows + 0.5) * tr.e)
+                        row_m2 = abs(tr.a * tr.e) * (111320.0 * 110574.0) * np.cos(lat)
+                        area = np.broadcast_to(row_m2[:, None], img.shape)
+                    else:
+                        area = np.full(img.shape, abs(tr.a * tr.e))
+                    for v in np.unique(data[valid]):
+                        counts[int(v)] = float(area[valid & (data == v)].sum()) / 1e6
+                except ValueError:
+                    pass  # zone outside the raster
+            seen.update(counts)
+            per_zone.append(counts)
+    worldcover = seen <= set(WORLDCOVER)
+    label = (lambda v: WORLDCOVER[v]) if worldcover else (lambda v: f"class_{v}")
+    out = []
+    for f, counts in zip(feats, per_zone):
+        props = dict(f.get("properties") or {})
+        total = sum(counts.values())
+        props[prefix + "area_km2"] = round(total, 4)
+        for v in sorted(seen):
+            km2 = counts.get(v, 0.0)
+            props[f"{prefix}{label(v)}_km2"] = round(km2, 4)
+            props[f"{prefix}{label(v)}_pct"] = round(100 * km2 / total, 2) if total else None
+        out.append({"type": "Feature", "properties": props, "geometry": f.get("geometry")})
+    names = ", ".join(f"{v}={label(v)}" for v in sorted(seen))
+    return {"type": "FeatureCollection", "features": out, "classes": names}
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "folder": str(DATA)}

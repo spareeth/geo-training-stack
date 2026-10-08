@@ -240,6 +240,9 @@ function createPanel(app) {
   const zPrefix = el("input", { type: "text", placeholder: "e.g. dem_ (optional)" });
   const zCsv = el("input", { type: "checkbox", checked: true });
   const zStatus = el("p", { class: "rp-muted" });
+  const zMode = el("select", {},
+    el("option", { value: "summary" }, "Summary: count, min, max, mean, sum, std, median"),
+    el("option", { value: "classes" }, "Area of each class (land cover, other class rasters)"));
 
   function vectorLayers() {
     return (app.listLayers?.() || []).filter((l) => !/tile|xyz|raster|cog|wms|wmts|zarr|image|terrain|3d|background|basemap/i.test(`${l.type || ""}`));
@@ -283,6 +286,18 @@ function createPanel(app) {
         zonesPath = up.path;
       }
       const rasterName = zRaster.selectedOptions[0]?.textContent || "raster";
+      if (zMode.value === "classes") {
+        // Categorical raster: km2 and % of each class per zone (computed by the file service).
+        const own = zonesPath.startsWith(`/data/${config.uid}/`);
+        const zones = await serverJson(`/files/${encodeURIComponent(zonesPath.split("/").pop())}/geojson${own ? "" : "?scope=shared"}`);
+        zStatus.textContent = "Computing class areas on the server...";
+        const fc = await serverJson("/files/zonal-classes", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raster: zRaster.value, zones, prefix: zPrefix.value.trim() }) });
+        app.addGeoJsonLayer?.(`Class areas: ${rasterName}`, fc);
+        zStatus.textContent = `Done. Classes: ${fc.classes}. Click a zone on the map to see km² and % of each class.`;
+        if (zCsv.checked) downloadText(featuresToCsv(fc), `classes-${safeStem(rasterName)}-${Date.now().toString(36)}.csv`, "text/csv");
+        return;
+      }
       const output = `/data/${config.uid}/zonal-${safeStem(rasterName)}-${Date.now().toString(36)}.geojson`;
       zStatus.textContent = "Computing on the server...";
       const job = await runRasterTool(serverJson, { toolId: "zonal", input: zRaster.value, output,
@@ -314,8 +329,9 @@ function createPanel(app) {
       picker, el("div", { class: "rp-row" }, upload), progress),
     el("details", { class: "rp-card rp-collapsible" },
       el("summary", {}, el("h3", {}, "Zonal statistics")),
-      el("p", { class: "rp-muted" }, "Count, min, max, mean, sum, std and median of a raster within each polygon, computed on the server."),
+      el("p", { class: "rp-muted" }, "Summary statistics of a raster within each polygon, or the area of each class of a land-cover raster. Computed on the server."),
       el("label", { class: "rp-field" }, el("span", {}, "Raster"), zRaster),
+      el("label", { class: "rp-field" }, el("span", {}, "Statistics"), zMode),
       el("label", { class: "rp-field" }, el("span", {}, "Zones (polygons)"), zZones),
       el("div", { class: "rp-two" }, el("label", { class: "rp-field" }, el("span", {}, "Band"), zBand),
         el("label", { class: "rp-field" }, el("span", {}, "Field prefix"), zPrefix)),
