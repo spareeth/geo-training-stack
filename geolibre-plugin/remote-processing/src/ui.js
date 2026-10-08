@@ -95,7 +95,7 @@ function createPanel(app) {
     config = { ...config, server: normalizeServer(server.value), code: code.value.trim(), metres: metres.checked };
     server.value = config.server;
     saveConfig(config);
-    if (await check()) refresh();
+    if (await check()) { refresh(); showTab("data"); }
   });
   const disconnect = el("button", { type: "button" }, "Disconnect");
   disconnect.addEventListener("click", () => {
@@ -104,7 +104,7 @@ function createPanel(app) {
     server.value = "";
     code.value = "";
     check();
-    list.replaceChildren();
+    refresh();
   });
 
   // ---- your folder ----
@@ -117,6 +117,7 @@ function createPanel(app) {
     config = { ...config, uid: id };
     saveConfig(config);
     folderCode.textContent = `/data/${id}`;
+    root.querySelectorAll(".rp-folderbar code").forEach((n) => { n.textContent = `/data/${id}`; });
     otherId.value = "";
     refresh();
   });
@@ -149,7 +150,6 @@ function createPanel(app) {
   });
 
   // ---- files ----
-  const list = el("div", { class: "rp-list" });
   const copy = (text) => navigator.clipboard?.writeText(text).then(() => notice(`Copied ${text}`), () => notice(text));
 
   async function addToMap(f) {
@@ -177,27 +177,48 @@ function createPanel(app) {
   function fileItem(f, shared) {
     const kind = fileKind(f.name);
     return el("div", { class: "rp-item" },
-      el("div", {}, el("span", { class: `rp-badge rp-${f.kind}` }, f.kind), " ", el("b", {}, f.name),
-        el("small", {}, ` ${f.size_mb} MB, ${f.modified} UTC`)),
-      el("code", {}, f.path),
-      el("div", { class: "rp-row" },
-        el("button", { type: "button", onclick: () => copy(f.path) }, "Copy path"),
-        kind !== "file" ? el("button", { type: "button", onclick: () => addToMap({ ...f, kind, scope: shared ? "shared" : "own" }) }, "Add to map") : null,
-        el("a", { class: "rp-button", href: withCode(`${config.server}${f.path}`, config.code), download: f.name, target: "_blank" }, "Download"),
-        shared ? null : el("button", { type: "button", onclick: () => remove(f) }, "Delete")));
+      el("div", { class: "rp-item-head" }, el("b", {}, f.name), el("small", {}, `${f.size_mb} MB · ${f.modified} UTC`)),
+      el("code", { class: "rp-path" }, f.path),
+      el("div", { class: "rp-actions" },
+        kind !== "file" ? el("button", { type: "button", class: "rp-small rp-strong", onclick: () => addToMap({ ...f, kind, scope: shared ? "shared" : "own" }) }, "Add to map") : null,
+        el("button", { type: "button", class: "rp-small", onclick: () => copy(f.path) }, "Copy path"),
+        el("a", { class: "rp-small", href: withCode(`${config.server}${f.path}`, config.code), download: f.name, target: "_blank" }, "Download"),
+        shared ? null : el("button", { type: "button", class: "rp-small rp-danger", onclick: () => remove(f) }, "Delete")));
   }
 
+  const GROUPS = [["raster", "Rasters"], ["vector", "Vectors"], ["file", "Other files"]];
+
+  /** Collapsible Rasters / Vectors / Other sections; groups with no files are left out. */
+  function grouped(files, shared) {
+    return GROUPS.map(([kind, title]) => {
+      const items = files.filter((f) => (fileKind(f.name) === "file" ? "file" : fileKind(f.name)) === kind);
+      if (!items.length) return null;
+      return el("details", { class: "rp-group", open: !shared },
+        el("summary", {}, el("span", { class: `rp-dot rp-${kind}` }), `${title} `, el("span", { class: "rp-count" }, String(items.length))),
+        items.map((f) => fileItem(f, shared)));
+    }).filter(Boolean);
+  }
+
+  const myList = el("div", {});
+  const sharedList = el("div", {});
+  const sharedBlock = el("section", { class: "rp-card", hidden: true }, el("h3", {}, "Shared course data ", el("small", {}, "read-only")), sharedList);
+
   async function refresh() {
-    if (!config.server) return;
-    list.replaceChildren("Loading...");
+    if (!config.server) {
+      myList.replaceChildren(el("p", { class: "rp-empty" }, "No data yet. Connect to the server in the ", el("b", {}, "Settings & help"), " tab."));
+      sharedBlock.hidden = true;
+      return;
+    }
+    myList.replaceChildren(el("p", { class: "rp-muted" }, "Loading..."));
     try {
       const r = await serverJson("/files");
       serverFiles = [...r.files, ...(r.shared || []).map((f) => ({ ...f, shared: true }))];
       fillZonalPickers();
-      list.replaceChildren(
-        ...(r.files.length ? r.files.map((f) => fileItem(f, false)) : ["Your folder is empty. Upload your data above."]),
-        ...(r.shared?.length ? [el("h4", {}, "Shared files (from the trainer, read-only)"), ...r.shared.map((f) => fileItem(f, true))] : []));
-    } catch (e) { list.replaceChildren(el("p", { class: "rp-error-text" }, e.message)); }
+      myList.replaceChildren(...(r.files.length ? grouped(r.files, false)
+        : [el("p", { class: "rp-empty" }, "No data yet. Upload files below, or run a tool with an output in your folder.")]));
+      sharedList.replaceChildren(...grouped(r.shared || [], true));
+      sharedBlock.hidden = !(r.shared || []).length;
+    } catch (e) { myList.replaceChildren(el("p", { class: "rp-error-text" }, e.message)); }
   }
 
   // ---- zonal statistics (GeoLibre's own implementation, run on the sidecar) ----
@@ -266,33 +287,78 @@ function createPanel(app) {
   });
   setInterval(() => { if (root.isConnected && document.activeElement !== zZones) fillZonalPickers(); }, 4000);
 
-  root.append(
-    el("h4", {}, "Processing server"), el("label", { class: "rp-field" }, el("span", {}, "Server"), server),
-    el("label", { class: "rp-field" }, el("span", {}, "Access code"), code),
-    el("div", { class: "rp-row" }, save, disconnect), status,
-    el("label", { class: "rp-check", title: "Whitebox tools measure in the data's units. With this on, data in latitude/longitude is reprojected to the local UTM zone on the server, so areas are in m², lengths and distances in metres. Results return to the map in latitude/longitude." },
-      metres, " Measure in metres (reproject lat/lon data to UTM automatically)"),
-    el("details", { class: "rp-help", open: true }, el("summary", {}, "How to run a tool on the server"),
+  const menu = (...parts) => el("span", { class: "rp-menu" }, parts.join(" › "));
+  const ui = (text) => el("b", {}, text);
+
+  // ---- Data tab ----
+  const dataTab = el("div", { class: "rp-tab-body" },
+    el("div", { class: "rp-folderbar" },
+      el("span", {}, "Your folder ", el("code", {}, `/data/${config.uid}`)),
+      el("button", { type: "button", class: "rp-small", onclick: refresh }, "↻ Refresh")),
+    el("section", { class: "rp-card" }, el("h3", {}, "My data"), myList),
+    sharedBlock,
+    el("section", { class: "rp-card" }, el("h3", {}, "Upload"),
+      el("p", { class: "rp-muted" }, "GeoTIFF rasters you want to process. Vector layers on the map need no upload."),
+      picker, el("div", { class: "rp-row" }, upload), progress),
+    el("details", { class: "rp-card rp-collapsible" },
+      el("summary", {}, el("h3", {}, "Zonal statistics")),
+      el("p", { class: "rp-muted" }, "Count, min, max, mean, sum, std and median of a raster within each polygon, computed on the server."),
+      el("label", { class: "rp-field" }, el("span", {}, "Raster"), zRaster),
+      el("label", { class: "rp-field" }, el("span", {}, "Zones (polygons)"), zZones),
+      el("div", { class: "rp-two" }, el("label", { class: "rp-field" }, el("span", {}, "Band"), zBand),
+        el("label", { class: "rp-field" }, el("span", {}, "Field prefix"), zPrefix)),
+      el("label", { class: "rp-check" }, zCsv, " Also download the table as CSV"),
+      el("div", { class: "rp-row" }, zRun), zStatus));
+
+  // ---- Settings & help tab ----
+  const helpTab = el("div", { class: "rp-tab-body" },
+    el("section", { class: "rp-card" }, el("h3", {}, "Connection"),
+      el("label", { class: "rp-field" }, el("span", {}, "Server"), server),
+      el("label", { class: "rp-field" }, el("span", {}, "Access code"), code),
+      el("div", { class: "rp-row" }, save, disconnect), status,
+      el("label", { class: "rp-check", title: "Whitebox tools measure in the data's units. With this on, data in latitude/longitude is reprojected to the local UTM zone on the server, so areas are in m², lengths and distances in metres. Results return to the map in latitude/longitude." },
+        metres, " Measure in metres (reproject lat/lon data to UTM automatically)")),
+    el("section", { class: "rp-card" }, el("h3", {}, "Your folder"),
+      el("div", { class: "rp-row" }, folderCode, el("button", { type: "button", class: "rp-small", onclick: () => copy(`/data/${config.uid}`) }, "Copy")),
+      el("p", { class: "rp-muted" }, "Created for this browser. Write the id down if you will switch browsers or clear browsing data."),
+      el("details", {}, el("summary", {}, "Use an existing folder id"), el("div", { class: "rp-row" }, otherId, useOther))),
+    el("section", { class: "rp-card rp-doc" }, el("h3", {}, "How to run a tool on the server"),
       el("ol", {},
-        el("li", {}, "Upload your rasters below (vector layers on the map need no upload)."),
-        el("li", {}, "Processing > Whitebox Toolbox (or GeoLibre Toolbox): untick \"Run locally (WASM)\"."),
-        el("li", {}, "For raster inputs choose Path and paste the server path (Copy path below)."),
-        el("li", {}, "Set the output to a new file in your folder, e.g. ", el("code", {}, `/data/${config.uid}/slope.tif`), ", and Run."),
-        el("li", {}, "Refresh the file list here and Add the result to the map, or Download it."))),
-    el("h4", {}, "Your folder"),
-    el("div", { class: "rp-row" }, folderCode, el("button", { type: "button", onclick: () => copy(`/data/${config.uid}`) }, "Copy")),
-    el("p", { class: "rp-muted" }, "Created for this browser. Note the id if you will switch browsers or clear browser data."),
-    el("details", {}, el("summary", {}, "Use an existing folder id"), el("div", { class: "rp-row" }, otherId, useOther)),
-    el("h4", {}, "Upload your data"), picker, upload, progress,
-    el("h4", {}, "Zonal statistics"),
-    el("p", { class: "rp-muted" }, "GeoLibre's zonal statistics (count, min, max, mean, sum, std, median per zone), run on the server."),
-    el("label", { class: "rp-field" }, el("span", {}, "Raster (on the server)"), zRaster),
-    el("label", { class: "rp-field" }, el("span", {}, "Zones (polygons)"), zZones),
-    el("div", { class: "rp-row" }, el("label", { class: "rp-field" }, el("span", {}, "Band"), zBand), el("label", { class: "rp-field" }, el("span", {}, "Field prefix"), zPrefix)),
-    el("label", { class: "rp-check" }, zCsv, " Also download the table as CSV"),
-    zRun, zStatus,
-    el("div", { class: "rp-row" }, el("h4", {}, "Files on the server"), el("button", { type: "button", onclick: refresh }, "Refresh")),
-    list);
+        el("li", {}, "Upload your rasters in the ", ui("Data"), " tab. Vector layers on the map need no upload."),
+        el("li", {}, "Open ", menu("Processing", "Whitebox Toolbox"), " (or ", menu("GeoLibre Toolbox"), ") and untick ", ui("Run locally (WASM)"), "."),
+        el("li", {}, "For raster inputs choose ", ui("Path"), " and paste the server path (", ui("Copy path"), " in the Data tab)."),
+        el("li", {}, "Set the output to a new file in your folder, e.g. ", el("code", {}, `/data/${config.uid}/slope.tif`), ", and click ", ui("Run"), "."),
+        el("li", {}, "In the Data tab, click ", ui("Refresh"), ", then ", ui("Add to map"), " or ", ui("Download"), " the result."))),
+    el("section", { class: "rp-card rp-doc" }, el("h3", {}, "Zonal statistics"),
+      el("ol", {},
+        el("li", {}, "Load or draw your zones on the map (", menu("Add Data", "Vector Layer"), " or ", menu("Plugins", "GeoEditor"), ")."),
+        el("li", {}, "In the Data tab open ", ui("Zonal statistics"), ", pick the raster and the zones layer."),
+        el("li", {}, "Click ", ui("Run zonal statistics on the server"), ". The zones get the statistics (click one on the map) and the table downloads as CSV."))),
+    el("section", { class: "rp-card rp-doc" }, el("h3", {}, "Tips"),
+      el("ul", {},
+        el("li", {}, "A tool that fails to read its input usually still has ", ui("Run locally (WASM)"), " ticked."),
+        el("li", {}, "Always include your folder in output paths; with ", ui("Auto"), " the result goes to a temporary place."),
+        el("li", {}, "Click a server raster in the Layers panel to style it: colormap, bands, rescale."),
+        el("li", {}, "Clip large rasters to your study area before uploading."))));
+
+  // ---- tabs ----
+  const tabs = { data: ["Data", dataTab], help: ["Settings & help", helpTab] };
+  const tabButtons = {};
+  function showTab(key) {
+    for (const [k, [, body]] of Object.entries(tabs)) {
+      body.hidden = k !== key;
+      tabButtons[k].classList.toggle("rp-active", k === key);
+      tabButtons[k].setAttribute("aria-selected", String(k === key));
+    }
+  }
+  const tabBar = el("div", { class: "rp-tabs", role: "tablist" }, Object.entries(tabs).map(([k, [label]]) => {
+    tabButtons[k] = el("button", { type: "button", role: "tab", onclick: () => showTab(k) }, label);
+    return tabButtons[k];
+  }));
+  root.append(tabBar, dataTab, helpTab);
+  showTab(config.server ? "data" : "help");
+
+  refresh();
   check().then((ok) => { if (ok) refresh(); });
   return root;
 }
