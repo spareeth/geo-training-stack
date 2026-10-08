@@ -1,0 +1,796 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moroto Case Studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: field-guide handout. Sticky contents rail on wide screens, one column on phones.
+   Steps are numbered because they are a real sequence; each shows where to click and what to set. */
+:root {
+  --bg: #f6f7f4;
+  --surface: #ffffff;
+  --fg: #1d2420;
+  --muted: #5d6862;
+  --line: #dde2dc;
+  --accent: #2f6b4f;        /* acacia green */
+  --accent-soft: #e3efe8;
+  --ochre: #a86a12;          /* sorghum ochre, for key results */
+  --ochre-soft: #f6ead6;
+  --code-bg: #eef1ec;
+  --warn: #9a3b1c;
+  --warn-soft: #f7e6de;
+  --bar: #2f6b4f;
+  --bar-track: #e4e9e3;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121614; --surface: #1a201d; --fg: #e7ece8; --muted: #a2ada6; --line: #2d3631;
+    --accent: #7fc4a0; --accent-soft: #1f3329; --ochre: #e0a54a; --ochre-soft: #3a2d17;
+    --code-bg: #232b27; --warn: #f0937a; --warn-soft: #3b231b; --bar: #7fc4a0; --bar-track: #2a332e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121614; --surface: #1a201d; --fg: #e7ece8; --muted: #a2ada6; --line: #2d3631;
+  --accent: #7fc4a0; --accent-soft: #1f3329; --ochre: #e0a54a; --ochre-soft: #3a2d17;
+  --code-bg: #232b27; --warn: #f0937a; --warn-soft: #3b231b; --bar: #7fc4a0; --bar-track: #2a332e;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--font-body); }
+.page { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px;
+  display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 900px) { .page { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 64px; padding-inline: 16px; } }
+
+/* contents rail */
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 15px; }
+nav.toc .label { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--fg); text-decoration: none; border-left: 2px solid transparent; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--accent-soft); border-left-color: var(--accent); outline: none; }
+nav.toc .sub { color: var(--muted); font-size: 13px; display: block; }
+@media (max-width: 900px) {
+  nav.toc { position: static; }
+  nav.toc ol { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+
+main { min-width: 0; }
+header.hero { padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.eyebrow { font: 600 13px/1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(32px, 5vw, 50px)/1.05 var(--font-display); letter-spacing: -0.02em; margin: 10px 0 14px; text-wrap: balance; }
+h2 { font: 700 clamp(25px, 3.4vw, 33px)/1.15 var(--font-display); letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
+h3 { font: 600 19px/1.3 var(--font-display); margin: 30px 0 12px; }
+p { margin: 0 0 14px; max-width: 68ch; }
+.lead { font-size: 19px; color: var(--muted); max-width: 64ch; }
+a { color: var(--accent); }
+strong { font-weight: 700; }
+
+section.part { padding-top: 48px; scroll-margin-top: 16px; }
+.part-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.part-tag { font: 600 13px/1 var(--font-mono); color: var(--surface); background: var(--accent); padding: 6px 9px; border-radius: 5px; }
+.question { font: 400 19px/1.45 var(--font-body); color: var(--muted); margin-bottom: 18px; }
+
+/* context box */
+.context { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 18px 0 8px; }
+.context p { margin: 0; }
+.context .k { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+
+/* overview table + data tables */
+.table-wrap { overflow-x: auto; margin: 14px 0 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12.5px/1.3 var(--font-body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--code-bg); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+tr.hot td { background: var(--ochre-soft); }
+tr.hot td:first-child { font-weight: 700; }
+
+/* steps */
+ol.steps { list-style: none; counter-reset: step; margin: 6px 0 0; padding: 0; display: grid; gap: 14px; }
+ol.steps > li { counter-increment: step; position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 16px 62px; min-width: 0; }
+ol.steps > li::before { content: counter(step); position: absolute; left: 16px; top: 15px; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 15px/1 var(--font-display); color: var(--accent); background: var(--accent-soft); }
+.step-title { font-weight: 700; margin-bottom: 4px; }
+.where { font: 500 14px/1.5 var(--font-body); color: var(--muted); margin: 0 0 10px; }
+.menu { font-weight: 600; color: var(--fg); background: var(--code-bg); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.sep { color: var(--muted); padding: 0 2px; }
+.btn-name { font-weight: 700; }
+ol.steps p { margin: 6px 0 0; }
+.why { font-size: 15px; color: var(--muted); margin-top: 8px; }
+
+/* parameter list */
+dl.params { display: grid; grid-template-columns: minmax(120px, max-content) minmax(0, 1fr); gap: 6px 14px; margin: 10px 0 0; font-size: 15.5px; }
+dl.params dt { color: var(--muted); font-weight: 600; }
+dl.params dd { margin: 0; min-width: 0; }
+@media (max-width: 560px) { dl.params { grid-template-columns: minmax(0, 1fr); gap: 2px; } dl.params dd { margin-bottom: 8px; } }
+
+/* code chips with copy */
+code { font: 500 0.88em/1.4 var(--font-mono); background: var(--code-bg); border-radius: 4px; padding: 1px 5px; word-break: break-word; }
+.copy { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; vertical-align: middle; }
+.copy code { overflow-wrap: anywhere; }
+.copy button { font: 600 12px/1 var(--font-body); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 4px 7px; cursor: pointer; flex: none; }
+.copy button:hover, .copy button:focus-visible { border-color: var(--accent); outline: none; }
+.copy button.done { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+
+/* callouts */
+.callout { border-radius: 10px; padding: 14px 16px; margin: 16px 0; font-size: 16px; }
+.callout p { margin: 0; }
+.callout.tip { background: var(--accent-soft); }
+.callout.warn { background: var(--warn-soft); }
+.callout .k { font: 700 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.callout.tip .k { color: var(--accent); }
+.callout.warn .k { color: var(--warn); }
+
+/* results */
+.results { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 18px; }
+.results > .k { font: 700 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--ochre); display: block; margin-bottom: 10px; }
+.results .table-wrap { margin: 10px 0 12px; }
+.bar { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.bar span.track { flex: 1; height: 8px; background: var(--bar-track); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.bar span.fill { display: block; height: 100%; background: var(--bar); border-radius: 4px; }
+.bar b { font-weight: 600; min-width: 3.2em; text-align: right; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 6px 0 4px; }
+.fact { border-top: 2px solid var(--ochre); padding-top: 8px; }
+.fact .v { font: 700 24px/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.fact .l { font-size: 14px; color: var(--muted); }
+
+.discuss { margin-top: 18px; }
+.discuss h4 { font: 700 12.5px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.discuss ul { margin: 0; padding-left: 20px; }
+.discuss li { margin: 6px 0; max-width: 68ch; }
+
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14.5px; margin: 8px 0 4px; }
+.flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; }
+.flow i { color: var(--muted); font-style: normal; }
+
+details.fgroup { margin: 10px 0; }
+details.fgroup > summary { cursor: pointer; font: 600 17px/1.3 var(--font-display); padding: 8px 0; }
+details.fgroup > summary span { font: 500 13px/1 var(--font-body); color: var(--muted); background: var(--code-bg); border-radius: 9px; padding: 2px 8px; margin-left: 6px; }
+details.fgroup .table-wrap { margin-top: 4px; }
+footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+footer p { max-width: none; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+</head><body>
+
+<div class="page">
+  <nav class="toc" aria-label="Contents">
+    <div class="label">Contents</div>
+    <ol>
+      <li><a href="#setup">Setup<span class="sub">Plugin, data, habits</span></a></li>
+      <li><a href="#part0">Part 0<span class="sub">Uganda to Moroto</span></a></li>
+      <li><a href="#part1">Part 1<span class="sub">Access to schools</span></a></li>
+      <li><a href="#part2">Part 2<span class="sub">Access to health</span></a></li>
+      <li><a href="#part3">Part 3<span class="sub">Road corridor</span></a></li>
+      <li><a href="#part4">Part 4<span class="sub">Print a map with the logo</span></a></li>
+      <li><a href="#fields">Fields<span class="sub">Census attributes</span></a></li>
+      <li><a href="#trouble">Help<span class="sub">If something fails</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">GEIDA training · Uganda · Karamoja</div>
+      <h1>From Uganda's 2024 census to a plan for Moroto district</h1>
+      <p class="lead">Four exercises in the browser. You start with all 2,205 subcounties of Uganda, narrow down to Moroto by attributes, then measure access to schools and health centres and screen a road upgrade. The heavy analysis runs on the course server through GeoLibre's own Whitebox tools.</p>
+      <div class="table-wrap" role="region" aria-label="Overview of the parts" tabindex="0">
+        <table>
+          <thead><tr><th>Part</th><th>Question</th><th>Main tools</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>Where in Uganda should a programme focus?</td><td>Select by Expression, Export Selected Features</td></tr>
+            <tr><td>1</td><td>Who lives more than 5 km from a school?</td><td>Vector Points To Raster, Euclidean Distance, Reclass, Multiply, Zonal statistics</td></tr>
+            <tr><td>2</td><td>Who lives far from a health centre, and from a proper one?</td><td>The same chain, with a filter on facility level</td></tr>
+            <tr><td>3</td><td>What would a Moroto–Tapac road upgrade cross?</td><td>Buffer, Slope, Reclass, Zonal statistics (summary and class areas), Select by Location</td></tr>
+            <tr><td>4</td><td>How do I share a result as a map?</td><td>Style, Print Layout, Logo on a printed map</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:15px;color:var(--muted)">The projects named here are hypothetical; the data and places are real. Results under "What you should see" come from test runs on the course server in October 2026. Small differences are normal.</p>
+    </header>
+
+    <!-- ===================== SETUP ===================== -->
+    <section class="part" id="setup">
+      <div class="part-head"><span class="part-tag">SETUP</span><h2>Before you start</h2></div>
+      <p class="question">About 10 minutes, once. You need Chrome, Edge or Firefox, the access code from your trainer, and <code>Moroto_course_data.zip</code> unzipped on your laptop.</p>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Open GeoLibre</div>
+          <p>Go to <span class="copy"><code>https://web.geolibre.app</code><button type="button" data-copy="https://web.geolibre.app">Copy</button></span></p>
+        </li>
+        <li>
+          <div class="step-title">Install the Remote Processing plugin</div>
+          <div class="where"><span class="menu">Settings</span><span class="sep">›</span><span class="menu">Manage Plugins</span><span class="sep">›</span><span class="menu">Settings</span> tab</div>
+          <p>Under <strong>Manifest URLs</strong> paste the address below and click <span class="btn-name">Add</span>. Close the dialog. The panel title should show version 0.4.0 or later; if you installed an older version, remove the URL and add it again.</p>
+          <p><span class="copy"><code>https://geolibre.terrawatch.net/plugin/plugin.json</code><button type="button" data-copy="https://geolibre.terrawatch.net/plugin/plugin.json">Copy</button></span></p>
+        </li>
+        <li>
+          <div class="step-title">Turn it on and open the panel</div>
+          <div class="where"><span class="menu">Plugins</span><span class="sep">›</span><span class="menu">Installed</span><span class="sep">›</span><span class="menu">Remote Processing</span>, then in the top bar <span class="menu">Remote Processing</span><span class="sep">›</span><span class="menu">Server connection and files</span></div>
+        </li>
+        <li>
+          <div class="step-title">Connect to the course server</div>
+          <div class="where">Panel tab <span class="menu">Settings &amp; help</span></div>
+          <dl class="params">
+            <dt>Server</dt><dd><span class="copy"><code>https://geolibre.terrawatch.net</code><button type="button" data-copy="https://geolibre.terrawatch.net">Copy</button></span></dd>
+            <dt>Access code</dt><dd>from your trainer</dd>
+            <dt>Measure in metres</dt><dd>leave ticked</dd>
+          </dl>
+          <p>Click <span class="btn-name">Save and connect</span>. The status turns green and the panel switches to the <strong>Data</strong> tab. Note your folder id (for example <code>/data/u-7f3k9q2m1x</code>).</p>
+        </li>
+        <li>
+          <div class="step-title">Check the course rasters</div>
+          <div class="where">Panel tab <span class="menu">Data</span><span class="sep">›</span><span class="menu">Shared course data</span><span class="sep">›</span><span class="menu">Rasters</span></div>
+          <p>You should see three rasters. They are already on the server, so you do not upload them.</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Course rasters">
+            <table>
+              <thead><tr><th>Raster</th><th>Contents</th></tr></thead>
+              <tbody>
+                <tr><td><code>moroto_dem_30m.tif</code></td><td>Elevation, Copernicus DEM 30 m: 719 m on the plains to 3,079 m on Mt Moroto</td></tr>
+                <tr><td><code>moroto_landcover_10m.tif</code></td><td>ESA WorldCover 2021, 10 m. Classes: 10 tree cover, 20 shrubland, 30 grassland, 40 cropland, 50 built-up, 60 bare, 80 water, 90 wetland</td></tr>
+                <tr><td><code>moroto_population_2024_100m.tif</code></td><td>WorldPop 2024 (constrained): people per 100 m cell</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </li>
+      </ol>
+
+      <h3>Vector files in the zip</h3>
+      <p>Open each with <span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span> and choose the file. They do not need uploading: GeoLibre sends a map layer to the server with each job. The four national boundary files are also in the panel under <span class="menu">Shared course data</span><span class="sep">›</span><span class="menu">Vectors</span>: click <span class="btn-name">Add to map</span>.</p>
+      <p class="why">Districts, subregions, regions and the outline were made by dissolving the census subcounties, so all levels line up exactly. Their <code>pop_total</code> is the sum of the subcounties: it leaves out Bidi Bidi settlement and the five Nakapiripirit subcounties without figures.</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Vector files">
+        <table>
+          <thead><tr><th>File</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td><code>uganda_country.geojson</code></td><td>Uganda outline</td></tr>
+            <tr><td><code>uganda_regions.geojson</code></td><td>The 4 regions (Central, Eastern, Northern, Western) with <code>pop_total</code></td></tr>
+            <tr><td><code>uganda_subregions.geojson</code></td><td>The 17 subregions, Karamoja among them, with <code>pop_total</code></td></tr>
+            <tr><td><code>uganda_districts.geojson</code></td><td>The 146 districts with <code>pop_total</code>, <code>n_subcounties</code>, <code>area_km2</code></td></tr>
+            <tr><td><code>uganda_subcounties_census2024.geojson</code></td><td>All 2,205 subcounties with NPHC 2024 census fields (UBOS)</td></tr>
+            <tr><td><code>moroto_subcounties_census2024.geojson</code></td><td>The 9 subcounties of Moroto district</td></tr>
+            <tr><td><code>moroto_schools_osm.geojson</code></td><td>106 schools and kindergartens (OpenStreetMap, Moroto + 10 km)</td></tr>
+            <tr><td><code>moroto_health_facilities_osm.geojson</code></td><td>31 health facilities (OpenStreetMap), duplicates removed, with a <code>level</code> field: HC II, HC III, Hospital</td></tr>
+            <tr><td><code>moroto_roads_osm.geojson</code></td><td>Roads and paths (OpenStreetMap)</td></tr>
+            <tr><td><code>moroto_tapac_road.geojson</code></td><td>The 27 km route from Moroto town to Tapac (Part 3)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>How to run any Whitebox tool on the server</h3>
+      <p>Every Whitebox step below follows the same pattern:</p>
+      <ol class="steps">
+        <li><div class="step-title">Open the toolbox and find the tool</div><div class="where"><span class="menu">Processing</span><span class="sep">›</span><span class="menu">Whitebox Toolbox</span>, type the tool name in the search box, click it.</div></li>
+        <li><div class="step-title">Untick <em>Run locally (WASM)</em></div><p>Top right of the dialog. If it stays ticked, the tool runs on your laptop and cannot read the server files.</p></li>
+        <li><div class="step-title">Fill in the inputs</div><p><strong>Raster input:</strong> set the drop-down to <span class="btn-name">Path</span> and paste a server path. Use <span class="btn-name">Copy path</span> next to a file in the panel's Data tab, or the paths given below. <strong>Vector input:</strong> pick the layer from the drop-down.</p></li>
+        <li><div class="step-title">Name the output and run</div><p>Type the short name given in the step (for example <code>dist_school</code>) or leave <span class="btn-name">Auto</span>. Click <span class="btn-name">Run</span> and wait for <strong>Succeeded</strong>. The result appears in your folder in the Data tab.</p></li>
+      </ol>
+      <div class="callout tip"><span class="k">Paths in your folder</span><p>Outputs are saved as <code>/data/&lt;your folder&gt;/&lt;name&gt;.tif</code>. When a later step says "Input <code>dist_school.tif</code>", use <span class="btn-name">Copy path</span> on that file in the Data tab.</p></div>
+    </section>
+
+    <!-- ===================== PART 0 ===================== -->
+    <section class="part" id="part0">
+      <div class="part-head"><span class="part-tag">PART 0</span><h2>From Uganda to Moroto</h2></div>
+      <p class="question">Where in Uganda should an education and health access programme start? Selecting by attributes.</p>
+      <div class="context"><span class="k">Context</span><p>A (hypothetical) <em>Karamoja Education and Health Access Programme</em> must choose one district for its first phase. The evidence is the 2024 census at subcounty level.</p></div>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Build the context: country, regions, subregions, districts</div>
+          <div class="where"><span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span>, or the panel's <span class="menu">Shared course data</span><span class="sep">›</span><span class="menu">Vectors</span></div>
+          <p>Load <code>uganda_country</code>, <code>uganda_regions</code>, <code>uganda_subregions</code> and <code>uganda_districts</code>. Click each one and compare <code>pop_total</code> and <code>n_subcounties</code>: Karamoja has 1.43 million people in 113 subcounties.</p>
+          <p class="why">Style them as outlines so they work as a frame: open the layer's style (Style tab on the right, or the palette icon in the Layers panel), set the fill opacity to 0 and give each level its own line: thick dark for regions, medium for subregions, thin grey for districts. Drag them to the top of the Layers panel.</p>
+        </li>
+        <li>
+          <div class="step-title">Load the national subcounties</div>
+          <div class="where"><span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span></div>
+          <p>Choose <code>uganda_subcounties_census2024.geojson</code>. 2,205 subcounties appear, below the boundary outlines.</p>
+        </li>
+        <li>
+          <div class="step-title">Explore the attributes</div>
+          <p>Click a few subcounties and read <code>pop_total</code>, <code>pct_oos612</code> (share of children 6–12 out of school), <code>pct_watimp</code> (improved water) and <code>pct_grid</code> (grid electricity). Every field is explained in <a href="#fields">Census attributes</a>.</p>
+          <p class="why">Optional: colour the layer by <code>pct_oos612</code> from its style settings (palette icon in the Layers panel) to see the national pattern.</p>
+        </li>
+        <li>
+          <div class="step-title">Select the Karamoja subregion</div>
+          <div class="where"><span class="menu">Edit</span><span class="sep">›</span><span class="menu">Select by Expression...</span></div>
+          <dl class="params">
+            <dt>Select features from</dt><dd><code>uganda_subcounties_census2024</code></dd>
+            <dt>Expression</dt><dd><span class="copy"><code>["==", ["get", "Subregion"], "Karamoja"]</code><button type="button" data-copy='["==", ["get", "Subregion"], "Karamoja"]'>Copy</button></span></dd>
+            <dt>Modify selection by</dt><dd>Creating a new selection</dd>
+          </dl>
+          <p>Click <span class="btn-name">Select features</span>. The dialog reports <strong>113 of 2205 features selected</strong>.</p>
+          <p class="why">Expressions use MapLibre's JSON form: <code>["operator", ["get", "field"], value]</code>. The <span class="btn-name">Expression builder...</span> button helps you write them.</p>
+        </li>
+        <li>
+          <div class="step-title">Keep only subcounties with more than 70% out of school</div>
+          <div class="where">Same dialog</div>
+          <dl class="params">
+            <dt>Expression</dt><dd><span class="copy"><code>[">", ["get", "pct_oos612"], 70]</code><button type="button" data-copy='[">", ["get", "pct_oos612"], 70]'>Copy</button></span></dd>
+            <dt>Modify selection by</dt><dd>Selecting within the current selection</dd>
+          </dl>
+          <p>Click <span class="btn-name">Select features</span>: <strong>67 selected</strong>, and 6 could not be evaluated.</p>
+        </li>
+        <li>
+          <div class="step-title">Look at the result</div>
+          <div class="where"><span class="menu">Edit</span><span class="sep">›</span><span class="menu">Zoom to Selection</span></div>
+        </li>
+        <li>
+          <div class="step-title">Choose Moroto and make it a layer</div>
+          <div class="where"><span class="menu">Edit</span><span class="sep">›</span><span class="menu">Select by Expression...</span>, then <span class="menu">Edit</span><span class="sep">›</span><span class="menu">Export Selected Features as Layer</span></div>
+          <dl class="params">
+            <dt>Expression</dt><dd><span class="copy"><code>["==", ["get", "District"], "Moroto"]</code><button type="button" data-copy='["==", ["get", "District"], "Moroto"]'>Copy</button></span></dd>
+            <dt>Modify selection by</dt><dd>Creating a new selection</dd>
+          </dl>
+          <p>9 subcounties are selected. The same selection works one level up: <code>["==", ["get", "District"], "Moroto"]</code> on <code>uganda_districts</code> gives the district outline, and <code>["==", ["get", "Subregion"], "Karamoja"]</code> on <code>uganda_subregions</code> the subregion. The exported layer is your study area. You can also load <code>moroto_subcounties_census2024.geojson</code>, which is the same.</p>
+        </li>
+      </ol>
+
+      <div class="results">
+        <span class="k">What you should see</span>
+        <div class="facts">
+          <div class="fact"><div class="v">74.6%</div><div class="l">of children 6–12 out of school in Karamoja; 20–35% elsewhere</div></div>
+          <div class="fact"><div class="v">67</div><div class="l">Karamoja subcounties above 70% out of school</div></div>
+          <div class="fact"><div class="v">6</div><div class="l">subcounties with no census figures (not evaluated)</div></div>
+          <div class="fact"><div class="v">103,639</div><div class="l">people in Moroto's 9 subcounties (census 2024)</div></div>
+        </div>
+        <p style="margin-top:12px">The 6 subcounties without figures are Nakapiripirit's five and the Lobule refugee camp. The data's <code>data_note</code> field explains why.</p>
+      </div>
+
+      <div class="discuss">
+        <h4>Discuss</h4>
+        <ul>
+          <li>Why Moroto rather than Amudat (86% out of school)? Think about data coverage (OpenStreetMap has 66 schools and 38 health facilities in Moroto), the terrain of Mt Moroto for Part 3, and the contrast between town and rural subcounties.</li>
+          <li>What does a missing value do to a selection? Try <span class="copy"><code>["==", ["get", "pop_total"], null]</code><button type="button" data-copy='["==", ["get", "pop_total"], null]'>Copy</button></span></li>
+          <li>Try <span class="btn-name">Filter layer</span> instead of <span class="btn-name">Select features</span>. What is the difference?</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================== PART 1 ===================== -->
+    <section class="part" id="part1">
+      <div class="part-head"><span class="part-tag">PART 1</span><h2>Who lives far from a school?</h2></div>
+      <p class="question">How many people in each Moroto subcounty live more than 5 km from a school, and does distance line up with out-of-school rates?</p>
+      <div class="context"><span class="k">Context</span><p>The programme wants to know where new classrooms would bring the most children within walking distance (5 km).</p></div>
+      <div class="flow" aria-label="Processing chain">
+        <span>Schools (points)</span><i>→</i><span>Vector Points To Raster</span><i>→</i><span>Euclidean Distance</span><i>→</i><span>Reclass &gt; 5 km</span><i>→</i><span>Multiply × population</span><i>→</i><span>Zonal statistics per subcounty</span>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Load the layers</div>
+          <div class="where"><span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span></div>
+          <p>Load <code>moroto_schools_osm.geojson</code> and <code>moroto_subcounties_census2024.geojson</code> (or use your exported Moroto layer).</p>
+        </li>
+        <li>
+          <div class="step-title">Burn the schools onto the population grid</div>
+          <div class="where">Whitebox tool <span class="menu">Vector Points To Raster</span></div>
+          <dl class="params">
+            <dt>Input</dt><dd>the schools layer (drop-down)</dd>
+            <dt>Base</dt><dd>Path <span class="copy"><code>/data/moroto_population_2024_100m.tif</code><button type="button" data-copy="/data/moroto_population_2024_100m.tif">Copy</button></span></dd>
+            <dt>Zero background</dt><dd>ticked</dd>
+            <dt>Output</dt><dd><code>school_r</code></dd>
+          </dl>
+          <p class="why">Using the population raster as the base puts every later raster on the same 100 m grid, so they can be combined cell by cell.</p>
+        </li>
+        <li>
+          <div class="step-title">Distance to the nearest school</div>
+          <div class="where">Whitebox tool <span class="menu">Euclidean Distance</span></div>
+          <dl class="params">
+            <dt>Input</dt><dd>Path to <code>school_r.tif</code> (Copy path in the Data tab)</dd>
+            <dt>Output</dt><dd><code>dist_school</code></dd>
+          </dl>
+          <p class="why">Each cell now holds the straight-line distance in metres to the nearest school.</p>
+        </li>
+        <li>
+          <div class="step-title">Mark cells beyond 5 km</div>
+          <div class="where">Whitebox tool <span class="menu">Reclass</span></div>
+          <dl class="params">
+            <dt>Input</dt><dd>Path to <code>dist_school.tif</code></dd>
+            <dt>Reclass values</dt><dd><span class="copy"><code>0;0;5000;1;5000;1000000</code><button type="button" data-copy="0;0;5000;1;5000;1000000">Copy</button></span></dd>
+            <dt>Output</dt><dd><code>far_school</code></dd>
+          </dl>
+          <p class="why">Read the values in groups of three: <em>new value; from; up to</em>. Cells 0–5,000 m become 0, cells beyond 5,000 m become 1.</p>
+        </li>
+        <li>
+          <div class="step-title">Count the people beyond 5 km</div>
+          <div class="where">Whitebox tool <span class="menu">Multiply</span></div>
+          <dl class="params">
+            <dt>Input 1</dt><dd>Path to <code>far_school.tif</code></dd>
+            <dt>Input 2</dt><dd>Path <span class="copy"><code>/data/moroto_population_2024_100m.tif</code><button type="button" data-copy="/data/moroto_population_2024_100m.tif">Copy</button></span></dd>
+            <dt>Output</dt><dd><code>pop_far_school</code></dd>
+          </dl>
+        </li>
+        <li>
+          <div class="step-title">Summarise per subcounty</div>
+          <div class="where">Panel <span class="menu">Data</span><span class="sep">›</span><span class="menu">Zonal statistics</span> (open the section)</div>
+          <p>Run it three times, with <strong>Zones</strong> = the Moroto subcounties layer and <strong>Also download the table as CSV</strong> ticked:</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Zonal statistics runs">
+            <table>
+              <thead><tr><th>Raster</th><th>Field prefix</th><th>Read</th></tr></thead>
+              <tbody>
+                <tr><td><code>dist_school.tif</code></td><td><code>dist_</code></td><td><code>dist_mean</code>: average distance (m)</td></tr>
+                <tr><td><code>pop_far_school.tif</code></td><td><code>far_</code></td><td><code>far_sum</code>: people beyond 5 km</td></tr>
+                <tr><td>Shared <code>moroto_population_2024_100m.tif</code></td><td><code>pop_</code></td><td><code>pop_sum</code>: all people (WorldPop)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">Compare in a spreadsheet</div>
+          <p>Open the CSVs. Compute <code>far_sum / pop_sum</code> for each subcounty and set it beside the census field <code>pct_oos612</code>.</p>
+        </li>
+      </ol>
+
+      <div class="results">
+        <span class="k">What you should see</span>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Access to schools by subcounty">
+          <table>
+            <thead><tr><th>Subcounty</th><th class="num">Mean distance</th><th class="num">People &gt; 5 km</th><th>Share &gt; 5 km</th><th class="num">Out of school 6–12</th></tr></thead>
+            <tbody>
+              <tr class="hot"><td>Tapac</td><td class="num">8.5 km</td><td class="num">6,659</td><td><div class="bar"><span class="track"><span class="fill" style="width:41%"></span></span><b>41%</b></div></td><td class="num">89%</td></tr>
+              <tr><td>Rupa</td><td class="num">28.5 km</td><td class="num">6,240</td><td><div class="bar"><span class="track"><span class="fill" style="width:30%"></span></span><b>30%</b></div></td><td class="num">52%</td></tr>
+              <tr><td>Nadunget</td><td class="num">2.8 km</td><td class="num">1,032</td><td><div class="bar"><span class="track"><span class="fill" style="width:6%"></span></span><b>6%</b></div></td><td class="num">58%</td></tr>
+              <tr><td>Loputuk</td><td class="num">3.5 km</td><td class="num">601</td><td><div class="bar"><span class="track"><span class="fill" style="width:3%"></span></span><b>3%</b></div></td><td class="num">62%</td></tr>
+              <tr><td>Katikekile</td><td class="num">3.4 km</td><td class="num">275</td><td><div class="bar"><span class="track"><span class="fill" style="width:2%"></span></span><b>2%</b></div></td><td class="num">65%</td></tr>
+              <tr><td>Lotisan</td><td class="num">2.1 km</td><td class="num">0</td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td><td class="num">80%</td></tr>
+              <tr><td>Nadunget Town Council</td><td class="num">1.6 km</td><td class="num">0</td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td><td class="num">60%</td></tr>
+              <tr><td>North Division</td><td class="num">0.6 km</td><td class="num">0</td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td><td class="num">19%</td></tr>
+              <tr><td>South Division</td><td class="num">0.8 km</td><td class="num">0</td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td><td class="num">20%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>About <strong>14,800 people (11% of Moroto)</strong> live more than 5 km from a school. <strong>Tapac</strong> stands out: far from schools and 89% of its children out of school.</p>
+      </div>
+
+      <div class="discuss">
+        <h4>Discuss</h4>
+        <ul>
+          <li>Rupa's mean distance is 28.5 km, yet only 30% of its people are beyond 5 km. Why? (Large empty areas; people live near the schools.)</li>
+          <li>Lotisan has 80% out of school but nobody beyond 5 km. Which other barriers matter there?</li>
+          <li>WorldPop puts about 130,000 people in Moroto; the census counts 103,639. Which would you use, and for what?</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================== PART 2 ===================== -->
+    <section class="part" id="part2">
+      <div class="part-head"><span class="part-tag">PART 2</span><h2>Who lives far from a health centre?</h2></div>
+      <p class="question">Which subcounties lack access to a health centre that offers more than basic care (HC III and above)?</p>
+      <div class="context"><span class="k">Context</span><p>The district health office plans outreach and new health centres. Uganda's facility levels run from HC II (basic) through HC III and HC IV to hospitals.</p></div>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Load and inspect the health facilities</div>
+          <div class="where"><span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span></div>
+          <p>Choose <code>moroto_health_facilities_osm.geojson</code> and click a few points. The <code>level</code> field was derived from the names, because OpenStreetMap tags every facility in Moroto as "hospital" and several were mapped twice (57 points became 31).</p>
+        </li>
+        <li>
+          <div class="step-title">Run the access chain for all facilities</div>
+          <p>Repeat Part 1 steps 2–6 with the health facilities layer. Use the outputs <code>health_r</code>, <code>dist_health</code>, <code>far_health</code> and <code>pop_far_health</code>.</p>
+        </li>
+        <li>
+          <div class="step-title">Select HC III and above</div>
+          <div class="where"><span class="menu">Edit</span><span class="sep">›</span><span class="menu">Select by Expression...</span> on the health facilities layer</div>
+          <dl class="params">
+            <dt>Expression</dt><dd><span class="copy"><code>["in", ["get", "level"], ["literal", ["HC III", "HC IV", "Hospital"]]]</code><button type="button" data-copy='["in", ["get", "level"], ["literal", ["HC III", "HC IV", "Hospital"]]]'>Copy</button></span></dd>
+          </dl>
+          <p>Click <span class="btn-name">Select features</span>: <strong>16 of 31 selected</strong>. Then <span class="menu">Edit</span><span class="sep">›</span><span class="menu">Export Selected Features as Layer</span>.</p>
+        </li>
+        <li>
+          <div class="step-title">Run the chain again for HC III and above</div>
+          <p>Repeat Part 1 steps 2–6 with the exported layer. Use the outputs <code>health3_r</code>, <code>dist_health3</code>, <code>far_health3</code> and <code>pop_far_health3</code>.</p>
+        </li>
+      </ol>
+
+      <div class="results">
+        <span class="k">What you should see</span>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Access to health facilities by subcounty">
+          <table>
+            <thead><tr><th>Subcounty</th><th>Share &gt; 5 km, any facility</th><th>Share &gt; 5 km, HC III or above</th></tr></thead>
+            <tbody>
+              <tr class="hot"><td>Tapac</td><td><div class="bar"><span class="track"><span class="fill" style="width:61%"></span></span><b>61%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:75%"></span></span><b>75%</b></div></td></tr>
+              <tr><td>Rupa</td><td><div class="bar"><span class="track"><span class="fill" style="width:29%"></span></span><b>29%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:31%"></span></span><b>31%</b></div></td></tr>
+              <tr><td>Lotisan</td><td><div class="bar"><span class="track"><span class="fill" style="width:31%"></span></span><b>31%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:31%"></span></span><b>31%</b></div></td></tr>
+              <tr class="hot"><td>Katikekile</td><td><div class="bar"><span class="track"><span class="fill" style="width:4%"></span></span><b>4%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:27%"></span></span><b>27%</b></div></td></tr>
+              <tr class="hot"><td>Loputuk</td><td><div class="bar"><span class="track"><span class="fill" style="width:6%"></span></span><b>6%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:22%"></span></span><b>22%</b></div></td></tr>
+              <tr><td>Nadunget</td><td><div class="bar"><span class="track"><span class="fill" style="width:10%"></span></span><b>10%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:13%"></span></span><b>13%</b></div></td></tr>
+              <tr><td>Town council and divisions</td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td><td><div class="bar"><span class="track"><span class="fill" style="width:0%"></span></span><b>0%</b></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="facts">
+          <div class="fact"><div class="v">20,700</div><div class="l">people more than 5 km from any facility (16%)</div></div>
+          <div class="fact"><div class="v">30,500</div><div class="l">people more than 5 km from an HC III or above (23%)</div></div>
+        </div>
+        <p style="margin-top:12px">Requiring a proper health centre reveals gaps in Katikekile and Loputuk that the "any facility" map hides. Tapac is the worst served again.</p>
+      </div>
+
+      <div class="discuss">
+        <h4>Discuss</h4>
+        <ul>
+          <li>OpenStreetMap is incomplete and needed cleaning. How would you check it against the Ministry of Health facility list?</li>
+          <li>Straight-line distance ignores Mt Moroto. <em>Cost Distance</em>, with the slope raster from Part 3 as the cost, is the next step.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================== PART 3 ===================== -->
+    <section class="part" id="part3">
+      <div class="part-head"><span class="part-tag">PART 3</span><h2>Screening a road upgrade: Moroto town to Tapac</h2></div>
+      <p class="question">What terrain, land cover and people does a corridor of 1 km on each side of the road cross?</p>
+      <div class="context"><span class="k">Context</span><p>Tapac is the least served subcounty in Parts 1 and 2. A (hypothetical) <em>Moroto–Tapac Rural Access Road</em> would upgrade the existing 27 km track, which runs along the foothills of Mt Moroto.</p></div>
+      <div class="flow" aria-label="Processing chain">
+        <span>Road line</span><i>→</i><span>Buffer 1 km</span><i>→</i><span>Slope, Reclass &gt; 15°</span><i>→</i><span>Zonal statistics: class areas and summary</span><i>→</i><span>Select by Location</span>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Load the road and the facilities</div>
+          <div class="where"><span class="menu">Add Data</span><span class="sep">›</span><span class="menu">Vector Layer</span></div>
+          <p>Load <code>moroto_tapac_road.geojson</code>, plus the schools and health facilities if they are not on the map yet.</p>
+        </li>
+        <li>
+          <div class="step-title">Make the corridor</div>
+          <div class="where"><span class="menu">Processing</span><span class="sep">›</span><span class="menu">GeoLibre Toolbox</span><span class="sep">›</span><span class="menu">Vector</span><span class="sep">›</span><span class="menu">Buffer</span></div>
+          <dl class="params">
+            <dt>Input layer</dt><dd><code>moroto_tapac_road</code></dd>
+            <dt>Distance</dt><dd><code>1</code></dd>
+            <dt>Units</dt><dd>Kilometers</dd>
+            <dt>Engine</dt><dd>Client (Turf.js)</dd>
+          </dl>
+          <p>Click <span class="btn-name">Run</span>. A <strong>Buffer</strong> layer appears. This tool runs in your browser and is instant for one line.</p>
+        </li>
+        <li>
+          <div class="step-title">Slope from the DEM</div>
+          <div class="where">Whitebox tool <span class="menu">Slope</span></div>
+          <dl class="params">
+            <dt>Input</dt><dd>Path <span class="copy"><code>/data/moroto_dem_30m.tif</code><button type="button" data-copy="/data/moroto_dem_30m.tif">Copy</button></span></dd>
+            <dt>Units</dt><dd>degrees</dd>
+            <dt>Output</dt><dd><code>slope</code></dd>
+          </dl>
+        </li>
+        <li>
+          <div class="step-title">Mark steep terrain (over 15°)</div>
+          <div class="where">Whitebox tool <span class="menu">Reclass</span></div>
+          <dl class="params">
+            <dt>Input</dt><dd>Path to <code>slope.tif</code></dd>
+            <dt>Reclass values</dt><dd><span class="copy"><code>0;0;15;1;15;90</code><button type="button" data-copy="0;0;15;1;15;90">Copy</button></span></dd>
+            <dt>Output</dt><dd><code>steep15</code></dd>
+          </dl>
+        </li>
+        <li>
+          <div class="step-title">Land cover in the corridor: area of each class</div>
+          <div class="where">Panel <span class="menu">Data</span><span class="sep">›</span><span class="menu">Zonal statistics</span></div>
+          <dl class="params">
+            <dt>Raster</dt><dd>Shared: <code>moroto_landcover_10m.tif</code></dd>
+            <dt>Statistics</dt><dd><strong>Area of each class (land cover, other class rasters)</strong></dd>
+            <dt>Zones</dt><dd>Map layer: <strong>Buffer</strong></dd>
+            <dt>Field prefix</dt><dd><code>lc_</code></dd>
+          </dl>
+          <p>Click <span class="btn-name">Run zonal statistics on the server</span>. In one run the corridor gets, for every class, its area in km² and its share in %: <code>lc_grassland_km2</code>, <code>lc_grassland_pct</code>, <code>lc_shrubland_pct</code>, <code>lc_cropland_pct</code> and so on. Click the new <strong>Class areas</strong> layer on the map to read them, or open the CSV.</p>
+          <p class="why">WorldCover codes are named automatically (10 tree, 20 shrubland, 30 grassland, 40 cropland, 50 built-up, 60 bare, 80 water, 90 wetland). Try the same with Zones = the Moroto subcounties to compare land cover between subcounties.</p>
+        </li>
+        <li>
+          <div class="step-title">Slope and people in the corridor</div>
+          <div class="where">Panel <span class="menu">Data</span><span class="sep">›</span><span class="menu">Zonal statistics</span>, Statistics = <strong>Summary</strong>, Zones = the <strong>Buffer</strong> layer</div>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Corridor statistics">
+            <table>
+              <thead><tr><th>Raster</th><th>Field prefix</th><th>Read</th></tr></thead>
+              <tbody>
+                <tr><td><code>slope.tif</code></td><td><code>slope_</code></td><td>mean, median and max slope</td></tr>
+                <tr><td><code>steep15.tif</code></td><td><code>steep_</code></td><td>mean = share of the corridor steeper than 15°</td></tr>
+                <tr><td>Shared <code>moroto_population_2024_100m.tif</code></td><td><code>pop_</code></td><td>sum = people in the corridor</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">Facilities along the road</div>
+          <div class="where"><span class="menu">Edit</span><span class="sep">›</span><span class="menu">Select by Location...</span></div>
+          <p>Select the schools that are within the Buffer layer, then do the same for the health facilities.</p>
+        </li>
+        <li>
+          <div class="step-title">See where the route climbs</div>
+          <div class="where">Panel <span class="menu">Data</span>, next to <code>slope.tif</code>: <span class="btn-name">Add to map</span></div>
+          <p>Click the layer in the Layers panel to open its settings and choose a colour ramp. Steep sections show along the Mt Moroto foothills.</p>
+        </li>
+      </ol>
+
+      <div class="results">
+        <span class="k">What you should see</span>
+        <div class="facts">
+          <div class="fact"><div class="v">56.7 km²</div><div class="l">corridor around a 27.2 km route</div></div>
+          <div class="fact"><div class="v">11%</div><div class="l">of the corridor steeper than 15° (mean slope 5.8°, max 51°)</div></div>
+          <div class="fact"><div class="v">35,500</div><div class="l">people in the corridor (WorldPop 2024)</div></div>
+          <div class="fact"><div class="v">16 · 5</div><div class="l">schools · health facilities in the corridor (incl. Moroto's 2 hospitals)</div></div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Land cover in the corridor">
+          <table>
+            <thead><tr><th>Land cover in the corridor</th><th>Share</th></tr></thead>
+            <tbody>
+              <tr><td>Grassland</td><td><div class="bar"><span class="track"><span class="fill" style="width:55.1%"></span></span><b>55%</b></div></td></tr>
+              <tr><td>Shrubland</td><td><div class="bar"><span class="track"><span class="fill" style="width:30.7%"></span></span><b>31%</b></div></td></tr>
+              <tr><td>Cropland</td><td><div class="bar"><span class="track"><span class="fill" style="width:9.9%"></span></span><b>10%</b></div></td></tr>
+              <tr><td>Built-up</td><td><div class="bar"><span class="track"><span class="fill" style="width:2.5%"></span></span><b>2.5%</b></div></td></tr>
+              <tr><td>Tree cover</td><td><div class="bar"><span class="track"><span class="fill" style="width:1.7%"></span></span><b>1.7%</b></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="discuss">
+        <h4>Discuss</h4>
+        <ul>
+          <li>Where are the steep sections? Would a realignment avoid them?</li>
+          <li>Little cropland is affected, but what does grassland mean in Karamoja (pastoralism, grazing routes)?</li>
+          <li>Who benefits? Using Parts 1 and 2, how many people in Tapac live beyond 5 km of a school or an HC III that the road would connect to Moroto town?</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===================== PART 4 ===================== -->
+    <section class="part" id="part4">
+      <div class="part-head"><span class="part-tag">PART 4</span><h2>Print a result as a map, with the IsDB logo</h2></div>
+      <p class="question">Turn the Part 1 result into a map you can put in a report: out-of-school children and distance to school in Moroto.</p>
+
+      <ol class="steps">
+        <li>
+          <div class="step-title">Prepare the layers</div>
+          <p>Keep on the map: the Part 1 zonal statistics layer for <code>pop_far_school</code> (the subcounties with <code>far_sum</code>), the schools, <code>uganda_districts</code> as context and a light basemap. Hide everything else with the eye icon in the Layers panel.</p>
+        </li>
+        <li>
+          <div class="step-title">Colour the subcounties by a value</div>
+          <div class="where">Select the zonal statistics layer, then the <span class="menu">Style</span> tab on the right</div>
+          <p>Choose the <strong>Graduated</strong> style on <code>pct_oos612</code> with 5 classes and a yellow-to-red ramp. Set fill opacity to about 0.8. For the schools use small dark circles; for the districts a thin grey outline with no fill.</p>
+          <p class="why">Rename the layers from the <span class="menu">⋯</span> menu next to each layer in the Layers panel, for example "Children 6–12 out of school (%)" and "Schools (OSM)". The legend uses these names.</p>
+        </li>
+        <li>
+          <div class="step-title">Frame the map</div>
+          <p>Zoom to Moroto district (<span class="menu">Edit</span><span class="sep">›</span><span class="menu">Zoom to Selection</span> on the Moroto subcounties works well) and turn the map to north up.</p>
+        </li>
+        <li>
+          <div class="step-title">Open the print layout</div>
+          <div class="where"><span class="menu">Project</span><span class="sep">›</span><span class="menu">Print Layout...</span></div>
+          <dl class="params">
+            <dt>Title</dt><dd><span class="copy"><code>Moroto district: children out of school and distance to school</code><button type="button" data-copy='Moroto district: children out of school and distance to school'>Copy</button></span></dd>
+            <dt>Subtitle</dt><dd><span class="copy"><code>Share of children aged 6–12 out of school, by subcounty (NPHC 2024)</code><button type="button" data-copy='Share of children aged 6–12 out of school, by subcounty (NPHC 2024)'>Copy</button></span></dd>
+            <dt>Size, orientation</dt><dd>A4, Landscape</dd>
+            <dt>Map elements</dt><dd>tick Legend, Scale bar, North arrow, Date and Footer text</dd>
+            <dt>Footer text</dt><dd><span class="copy"><code>Data: UBOS NPHC 2024; OpenStreetMap contributors; WorldPop 2024. GEIDA training, IsDB.</code><button type="button" data-copy='Data: UBOS NPHC 2024; OpenStreetMap contributors; WorldPop 2024. GEIDA training, IsDB.'>Copy</button></span></dd>
+          </dl>
+          <p>Check the preview on the right. If you changed the map, click <span class="btn-name">Recapture map</span>. Untick legend entries you do not need with the eye icons in the Legend section.</p>
+        </li>
+        <li>
+          <div class="step-title">Export the map</div>
+          <p>Click <span class="btn-name">Export PNG</span>. The file is saved to your Downloads folder.</p>
+        </li>
+        <li>
+          <div class="step-title">Add the IsDB logo</div>
+          <div class="where">Panel <span class="menu">Data</span><span class="sep">›</span><span class="menu">Logo on a printed map</span> (open the section)</div>
+          <dl class="params">
+            <dt>Exported map (PNG)</dt><dd>the PNG you just exported</dd>
+            <dt>Logo</dt><dd>leave empty for the IsDB logo, or choose your own PNG</dd>
+            <dt>Corner</dt><dd>Bottom right (or a corner the legend does not use)</dd>
+            <dt>Logo width</dt><dd><code>16</code> % of the page</dd>
+          </dl>
+          <p>Click <span class="btn-name">Add logo and download</span>. You get <code>…-logo.png</code>, the same map with the logo on a white box.</p>
+        </li>
+      </ol>
+      <div class="callout tip"><span class="k">Why a separate step for the logo?</span><p>GeoLibre's Print Layout has no image element yet. <span class="menu">Controls</span><span class="sep">›</span><span class="menu">Image</span> can place a logo on the screen map (Image URL <span class="copy"><code>https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png</code><button type="button" data-copy='https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png'>Copy</button></span>), which is fine for screen sharing, but the print layout leaves it out. The plugin adds it to the exported PNG instead.</p></div>
+
+      <div class="discuss">
+        <h4>Discuss</h4>
+        <ul>
+          <li>Which map tells the story better: out-of-school share or people beyond 5 km? Make both and compare.</li>
+          <li>What should every map in a report carry? (Title, legend, scale, north arrow, source, date, author.)</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- FIELDS -->
+    <section class="part" id="fields">
+      <div class="part-head"><span class="part-tag">FIELDS</span><h2>Census attributes</h2></div>
+      <p class="question">What each field in <code>uganda_subcounties_census2024</code> and <code>moroto_subcounties_census2024</code> means.</p>
+      <p>Figures are from the Uganda Bureau of Statistics, National Population and Housing Census 2024, published in the <a href="https://statistics.ubos.org/nphc" target="_blank" rel="noopener">NPHC 2024 Explorer</a> (subcounty profiles). Counts are persons or households as noted; fields starting with <code>pct_</code> and <code>pop_dens</code> were derived from them for the course. Field names are 10 characters or fewer so they also work in shapefiles.</p>
+      <div class="callout tip"><span class="k">Used in the exercises</span><p><code>Subregion</code>, <code>District</code>, <code>pop_total</code>, <code>pop6_12</code>, <code>oos6_12</code>, <code>pct_oos612</code>, <code>data_note</code>. Useful for your own questions: <code>pct_watimp</code>, <code>pct_sanimp</code>, <code>pct_grid</code>, <code>pct_noecce</code>, <code>neet1524p</code>, <code>hh_pdm</code>.</p></div>
+      <details class="fgroup" open><summary>Key <span>4</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Key fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>SCCode</code></td><td>UBOS 6-digit subcounty code (text): district (3) + county (1) + subcounty (2). Join key.</td><td></td></tr><tr><td><code>Subcounty</code></td><td>Subcounty, town council or city division name (UBOS)</td><td></td></tr><tr><td><code>DCode</code></td><td>UBOS 3-digit district code (text). Join key.</td><td></td></tr><tr><td><code>District</code></td><td>District name (UBOS)</td><td></td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup" open><summary>Admin <span>5</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Admin fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>CntyCode</code></td><td>UBOS 4-digit county code</td><td></td></tr><tr><td><code>County</code></td><td>County name</td><td></td></tr><tr><td><code>Region</code></td><td>Region (from first digit of DCode)</td><td></td></tr><tr><td><code>SubregCode</code></td><td>UBOS subregion code</td><td></td></tr><tr><td><code>Subregion</code></td><td>Subregion name</td><td></td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup" open><summary>Derived <span>12</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Derived fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>area_km2</code></td><td>Subcounty area, computed in UTM 36N (EPSG:32636)</td><td>km2</td></tr><tr><td><code>pop_dens</code></td><td>Population density = pop_total / area_km2</td><td>persons/km2</td></tr><tr><td><code>pop6_17</code></td><td>School-age population 6-17 = pop6_12 + pop13_17</td><td>persons</td></tr><tr><td><code>pct_noecce</code></td><td>Share of children aged 3-5 not attending early childhood education = noecce3_5 / pop3_5</td><td>%</td></tr><tr><td><code>pct_noprm6</code></td><td>Share of 6-year-olds who have not started primary = noprim6 / pop6</td><td>%</td></tr><tr><td><code>pct_oos612</code></td><td>Share of children aged 6-12 out of school = oos6_12 / pop6_12</td><td>%</td></tr><tr><td><code>pct_oos131</code></td><td>Share of children aged 13-17 out of school = oos13_17 / pop13_17</td><td>%</td></tr><tr><td><code>pct_age0_4</code></td><td>Share of population aged 0-4</td><td>%</td></tr><tr><td><code>pct_watimp</code></td><td>Share of households with improved drinking water = wat_imp / households</td><td>%</td></tr><tr><td><code>pct_sanimp</code></td><td>Share of households with improved sanitation = san_imp / households</td><td>%</td></tr><tr><td><code>pct_grid</code></td><td>Share of households lighting with grid electricity</td><td>%</td></tr><tr><td><code>pct_subsis</code></td><td>Share of households in subsistence economy</td><td>%</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Population by sex <span>3</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Population by sex fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>pop_total</code></td><td>Total population</td><td>persons</td></tr><tr><td><code>pop_male</code></td><td>Male population</td><td>persons</td></tr><tr><td><code>pop_female</code></td><td>Female population</td><td>persons</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Households <span>3</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Households fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>hh_pop</code></td><td>Household population</td><td>persons</td></tr><tr><td><code>households</code></td><td>Number of households</td><td>households</td></tr><tr><td><code>hh_size</code></td><td>Average household size</td><td>persons/household</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Age groups <span>12</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Age groups fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>age0_4</code></td><td>Population aged 0-4</td><td>persons</td></tr><tr><td><code>age0_17</code></td><td>Population aged 0-17</td><td>persons</td></tr><tr><td><code>age6_12</code></td><td>Population aged 6-12</td><td>persons</td></tr><tr><td><code>age13_18</code></td><td>Population aged 13-18</td><td>persons</td></tr><tr><td><code>age14_64</code></td><td>Population aged 14-64</td><td>persons</td></tr><tr><td><code>age15plus</code></td><td>Population aged 15+</td><td>persons</td></tr><tr><td><code>age15_24</code></td><td>Population aged 15-24</td><td>persons</td></tr><tr><td><code>age18_30</code></td><td>Population aged 18-30</td><td>persons</td></tr><tr><td><code>age18plus</code></td><td>Population aged 18+</td><td>persons</td></tr><tr><td><code>age60plus</code></td><td>Population aged 60+</td><td>persons</td></tr><tr><td><code>age65plus</code></td><td>Population aged 65+</td><td>persons</td></tr><tr><td><code>age80plus</code></td><td>Population aged 80+</td><td>persons</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Birth registration <span>3</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Birth registration fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>br_cert</code></td><td>Persons registered, with certificate</td><td>persons</td></tr><tr><td><code>br_notif</code></td><td>Persons registered, with notification</td><td>persons</td></tr><tr><td><code>br_none</code></td><td>Persons not registered</td><td>persons</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>ICT <span>6</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="ICT fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>inet_male</code></td><td>Persons aged 10+ who used internet, male</td><td>persons</td></tr><tr><td><code>inet_fem</code></td><td>Persons aged 10+ who used internet, female</td><td>persons</td></tr><tr><td><code>inet_total</code></td><td>Persons aged 10+ who used internet, total</td><td>persons</td></tr><tr><td><code>hh_radio</code></td><td>Households owning a radio</td><td>households</td></tr><tr><td><code>hh_tv</code></td><td>Households owning a television</td><td>households</td></tr><tr><td><code>hh_comp</code></td><td>Households owning a computer</td><td>households</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Information sources <span>9</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Information sources fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>inf_radio</code></td><td>Households whose main source of information is radio</td><td>households</td></tr><tr><td><code>inf_wom</code></td><td>Households whose main source of information is word of mouth</td><td>households</td></tr><tr><td><code>inf_phone</code></td><td>Households whose main source of information is phone calls</td><td>households</td></tr><tr><td><code>inf_tv</code></td><td>Households whose main source of information is television</td><td>households</td></tr><tr><td><code>inf_meet</code></td><td>Households whose main source of information is community meetings</td><td>households</td></tr><tr><td><code>inf_inet</code></td><td>Households whose main source of information is internet/social media</td><td>households</td></tr><tr><td><code>inf_annc</code></td><td>Households whose main source of information is community announcer</td><td>households</td></tr><tr><td><code>inf_print</code></td><td>Households whose main source of information is print media</td><td>households</td></tr><tr><td><code>inf_other</code></td><td>Households whose main source of information is other sources</td><td>households</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Health <span>2</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Health fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>hh_mosnet</code></td><td>Households owning a mosquito net</td><td>households</td></tr><tr><td><code>p_hlthins</code></td><td>Persons with health insurance</td><td>persons</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Employment <span>8</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Employment fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>unemp15n</code></td><td>Unemployed, aged 15+</td><td>persons</td></tr><tr><td><code>unemp15pct</code></td><td>Unemployment rate, aged 15+</td><td>%</td></tr><tr><td><code>unemp1464n</code></td><td>Unemployed, aged 14-64</td><td>persons</td></tr><tr><td><code>unemp1464p</code></td><td>Unemployment rate, aged 14-64</td><td>%</td></tr><tr><td><code>neet1524n</code></td><td>Youth not in employment, education or training (NEET), 15-24</td><td>persons</td></tr><tr><td><code>neet1524p</code></td><td>NEET rate, 15-24</td><td>%</td></tr><tr><td><code>neet1830n</code></td><td>NEET, 18-30</td><td>persons</td></tr><tr><td><code>neet1830p</code></td><td>NEET rate, 18-30</td><td>%</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Water &amp; sanitation <span>5</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Water &amp; sanitation fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>wat_imp</code></td><td>Households using an improved main drinking water source</td><td>households</td></tr><tr><td><code>wat_unimp</code></td><td>Households using an unimproved main drinking water source</td><td>households</td></tr><tr><td><code>san_imp</code></td><td>Households with improved sanitation</td><td>households</td></tr><tr><td><code>san_unimp</code></td><td>Households with unimproved sanitation</td><td>households</td></tr><tr><td><code>open_def</code></td><td>Households practising open defecation</td><td>households</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Lighting <span>3</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Lighting fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>lt_grid</code></td><td>Households using grid electricity for lighting</td><td>households</td></tr><tr><td><code>lt_solar</code></td><td>Households using solar for lighting</td><td>households</td></tr><tr><td><code>lt_solgrid</code></td><td>Households using combined solar and grid for lighting</td><td>households</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Economic <span>2</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Economic fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>hh_subsist</code></td><td>Households in the subsistence economy</td><td>households</td></tr><tr><td><code>hh_pdm</code></td><td>Households that benefited from the Parish Development Model (PDM)</td><td>households</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup" open><summary>Education <span>8</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Education fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>pop3_5</code></td><td>Population aged 3-5</td><td>persons</td></tr><tr><td><code>noecce3_5</code></td><td>Aged 3-5 not attending early childhood care and education</td><td>persons</td></tr><tr><td><code>pop6</code></td><td>Population aged 6</td><td>persons</td></tr><tr><td><code>noprim6</code></td><td>Aged 6 not started primary</td><td>persons</td></tr><tr><td><code>pop6_12</code></td><td>Population aged 6-12</td><td>persons</td></tr><tr><td><code>oos6_12</code></td><td>Out of school, aged 6-12</td><td>persons</td></tr><tr><td><code>pop13_17</code></td><td>Population aged 13-17</td><td>persons</td></tr><tr><td><code>oos13_17</code></td><td>Out of school, aged 13-17</td><td>persons</td></tr></tbody></table></div>
+      </details>
+      <details class="fgroup"><summary>Quality <span>1</span></summary>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Quality fields"><table><thead><tr><th>Field</th><th>Meaning</th><th>Unit</th></tr></thead><tbody><tr><td><code>data_note</code></td><td>Why a row has no figures or no polygon (blank = complete)</td><td></td></tr></tbody></table></div>
+      </details>
+      <p class="why">A blank value means the census explorer published no figure for that subcounty; <code>data_note</code> says why. The district, subregion and region layers carry only <code>pop_total</code>, <code>n_subcounties</code> and <code>area_km2</code>.</p>
+    </section>
+
+    <!-- ===================== TROUBLESHOOTING ===================== -->
+    <section class="part" id="trouble">
+      <div class="part-head"><span class="part-tag">HELP</span><h2>If something fails</h2></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Troubleshooting">
+        <table>
+          <thead><tr><th>What happens</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>The tool says it could not read the input, or runs very slowly</td><td>Untick <strong>Run locally (WASM)</strong> in the tool dialog.</td></tr>
+            <tr><td>"Failed: Tool execution failed"</td><td>Check the input path (use <span class="btn-name">Copy path</span>), or pick the layer from the list. Check the Reclass values are separated by semicolons.</td></tr>
+            <tr><td>The result is not in the Data tab</td><td>Click <span class="btn-name">↻ Refresh</span>. If it is still missing, the tool failed: read its message.</td></tr>
+            <tr><td>Status says <em>Wrong access code</em> or <em>Not connected</em></td><td>Re-type the server address and code in <strong>Settings &amp; help</strong>, then <span class="btn-name">Save and connect</span>.</td></tr>
+            <tr><td>My files are gone</td><td>You are in a new browser or cleared its data. Under <strong>Your folder</strong>, open <em>Use an existing folder id</em> and enter your old id.</td></tr>
+            <tr><td>The corridor looks wrong</td><td>Use GeoLibre's Buffer (Part 3, step 2), not Whitebox <em>Buffer Vector</em>, which mishandles long winding lines.</td></tr>
+            <tr><td>The plugin disappeared</td><td><span class="menu">Settings</span><span class="sep">›</span><span class="menu">Manage Plugins</span><span class="sep">›</span><span class="menu">Settings</span>: remove the plugin URL, add it again, and turn it on under <span class="menu">Plugins</span><span class="sep">›</span><span class="menu">Installed</span>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn"><span class="k">Read the data critically</span><p>OpenStreetMap is incomplete and the health facilities were cleaned. WorldPop and the census disagree on Moroto's population. The UBOS boundaries are simplified and overlap slightly along district borders.</p></div>
+    </section>
+
+    <footer>
+      <p>Data: Uganda Bureau of Statistics, National Population and Housing Census 2024 (subcounty boundaries and tables). OpenStreetMap contributors (ODbL), via HOT exports on HDX. Copernicus DEM GLO-30. ESA WorldCover 2021 (CC BY 4.0). WorldPop 2024 (CC BY 4.0). Projects in the exercises are hypothetical.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+document.querySelectorAll('.copy button').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var text = btn.getAttribute('data-copy');
+    var done = function () { btn.textContent = 'Copied'; btn.classList.add('done'); setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600); };
+    var fallback = function () {
+      var code = btn.parentElement.querySelector('code');
+      var range = document.createRange(); range.selectNodeContents(code);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      btn.textContent = 'Press Ctrl+C';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 2200);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } catch (e) { fallback(); }
+  });
+});
+</script>
+</body></html>
