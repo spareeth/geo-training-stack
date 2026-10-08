@@ -242,7 +242,7 @@ def _warp_to_utm(path: str, epsg: int) -> str:
 
     src_path = Path(path)
     key = "__".join(src_path.resolve().relative_to(DATA.resolve()).with_suffix("").parts)
-    out = DATA / UTM_DIR / f"{key}-{epsg}-{int(src_path.stat().st_mtime)}.tif"
+    out = DATA / UTM_DIR / f"{key}-{epsg}-{int(src_path.stat().st_mtime)}-v2.tif"  # v2: nearest for classes
     if out.exists():
         return str(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -251,9 +251,14 @@ def _warp_to_utm(path: str, epsg: int) -> str:
         profile = src.profile.copy()
         profile.update(crs=f"EPSG:{epsg}", transform=transform, width=width, height=height, driver="GTiff",
                        tiled=True, blockxsize=256, blockysize=256, compress="deflate")
+        # Integer rasters are classes or codes (land cover, masks): nearest neighbour keeps the values
+        # exact. Continuous rasters (elevation, population) are interpolated bilinearly.
+        import numpy as np
+        integer = all(np.issubdtype(np.dtype(d), np.integer) for d in src.dtypes)
+        method = Resampling.nearest if integer else Resampling.bilinear
         with rasterio.open(out, "w", **profile) as dst:
             for b in range(1, src.count + 1):
-                reproject(rasterio.band(src, b), rasterio.band(dst, b), resampling=Resampling.bilinear)
+                reproject(rasterio.band(src, b), rasterio.band(dst, b), resampling=method)
     return str(out)
 
 
@@ -301,15 +306,18 @@ def _vector_gpkg(gj: dict, key: str, epsg: int, reproject: bool) -> str:
     import geopandas as gpd
 
     digest = hashlib.sha1(json.dumps(gj, sort_keys=True).encode()).hexdigest()[:12]
-    out = DATA / UTM_DIR / f"{key}-{epsg}-{digest}.gpkg"
+    # Plain names: Whitebox names its outputs after the input layer, and hyphens there break the
+    # SQL of the GeoPackages it writes.
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", key)
+    out = DATA / UTM_DIR / f"{safe}_{epsg}_{digest}.gpkg"
     if not out.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
         declared = _geojson_epsg(gj) or 4326
         gdf = gpd.GeoDataFrame.from_features(gj.get("features", []), crs=declared)
         if reproject and declared != epsg:
             gdf = gdf.to_crs(epsg)
-        tmp = out.with_suffix(".tmp.gpkg")
-        gdf.to_file(tmp, driver="GPKG")
+        tmp = out.with_name(out.stem + "_tmp.gpkg")
+        gdf.to_file(tmp, driver="GPKG", layer="features")
         os.replace(tmp, out)
     return str(out)
 
@@ -406,7 +414,7 @@ def prepare_request(req: dict, utm: bool) -> tuple[dict, int | None]:
             continue  # lists of layers keep the sidecar's own handling
         gj = value["geojson"]
         target = epsg or _geojson_epsg(gj) or 4326
-        params[name] = _vector_gpkg(gj, f"layer-{re.sub(r'[^A-Za-z0-9_-]', '-', name)}", target, reproject=bool(epsg))
+        params[name] = _vector_gpkg(gj, f"layer_{name}", target, reproject=bool(epsg))
         del layers[name]
     for k, gj in vector_json.items():
         key = "__".join(Path(params[k]).resolve().relative_to(DATA.resolve()).with_suffix("").parts)
