@@ -1,6 +1,6 @@
 // Logic of the Remote Processing plugin that does not touch the page (tested with node --test).
 
-export const VERSION = "0.2.1";
+export const VERSION = "0.3.0";
 export const STORAGE_KEY = "geolibre-remote-processing";
 
 /** "sidecar.example.org" or "https://sidecar.example.org/" -> "https://sidecar.example.org" */
@@ -35,12 +35,14 @@ export function withCode(url, code) {
  */
 export function makeFetch(originalFetch, getConfig, origin) {
   return function remoteSidecarFetch(input, init) {
-    const { server, code, metres = true } = getConfig() || {};
+    const { server, code, uid, metres = true } = getConfig() || {};
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input?.url;
     const target = rewriteSidecarUrl(url, origin, server);
     if (!target) return originalFetch(input, init);
     const headers = new Headers(init?.headers || (typeof input === "object" && input?.headers) || undefined);
     if (code) headers.set("X-Access-Code", code);
+    // The server saves tool outputs (Auto or a bare file name) in this participant's folder.
+    if (uid) headers.set("X-Participant", uid);
     // Measure in metres: the server reprojects lat/lon inputs of Whitebox jobs to UTM.
     if (metres && /\/sidecar\/whitebox\/run(\?|$)/.test(target)) headers.set("X-Auto-Project", "utm");
     if (typeof input === "object" && !(input instanceof URL) && input) {

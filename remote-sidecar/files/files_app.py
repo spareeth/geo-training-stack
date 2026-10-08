@@ -190,15 +190,19 @@ def utm_epsg(lon: float, lat: float) -> int:
 
 
 def param_kinds(tool_id: str, tool: dict | None) -> dict:
-    """Parameter name -> kind (raster_in, vector_in, raster_out, vector_out, ...)."""
-    if tool and tool.get("params"):
-        return {p["name"]: p.get("kind", "") for p in tool["params"]}
+    """Parameter name -> kind (raster_in, vector_in, raster_out, vector_out, file_out, ...).
+    GeoLibre's web app sends the tool description without kinds, so they come from the sidecar's
+    tool catalogue (cached); kinds present in the request take precedence."""
     if not _tool_kinds:
         with urllib.request.urlopen(f"{SIDECAR}/whitebox/tools", timeout=60) as r:
             body = json.load(r)
         for t in body if isinstance(body, list) else body.get("tools", []):
             _tool_kinds[t["id"]] = {p["name"]: p.get("kind", "") for p in t.get("params", [])}
-    return _tool_kinds.get(tool_id, {})
+    kinds = dict(_tool_kinds.get(tool_id, {}))
+    for p in (tool or {}).get("params", []) or []:
+        if p.get("kind"):
+            kinds[p["name"]] = p["kind"]
+    return kinds
 
 
 def _geojson_center(gj: dict):
@@ -310,6 +314,57 @@ def _vector_gpkg(gj: dict, key: str, epsg: int, reproject: bool) -> str:
     return str(out)
 
 
+REPORT_TOOL = re.compile(r"histogram|report|info|summary|plot|profile|list_|attributes|statistics_text|stats_text")
+
+
+def _output_extension(tool_id: str, kind: str, kinds: dict) -> str:
+    if kind == "raster_out":
+        return ".tif"
+    if kind == "vector_out":
+        return ".geojson"
+    if kind == "lidar_out":
+        return ".laz"
+    # "file_out": reports for report-type tools, else the type of the tool's input
+    if REPORT_TOOL.search(tool_id):
+        return ".html"
+    if "raster_in" in kinds.values():
+        return ".tif"
+    if "vector_in" in kinds.values():
+        return ".geojson"
+    return ".html"
+
+
+def place_outputs(req: dict, uid: str | None) -> dict:
+    """Outputs go to the participant's folder, so the plugin can list them:
+    Auto (empty) -> /data/<uid>/<tool>-<time>.<ext>; a bare name 'pop-clip' or 'pop-clip.tif' ->
+    /data/<uid>/pop-clip(.ext); any path outside /data -> its file name in /data/<uid>/.
+    Paths already under /data are kept. Without a folder id (older plugin), nothing changes."""
+    if not uid or not PARTICIPANT.match(uid):
+        return req
+    tool_id = req.get("tool_id", "tool")
+    kinds = param_kinds(tool_id, req.get("tool"))
+    tool_params = {p["name"]: p for p in (req.get("tool") or {}).get("params", [])}
+    params = dict(req.get("parameters") or {})
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    for name, kind in kinds.items():
+        if not kind.endswith("_out"):
+            continue
+        present = name in params
+        required = bool(tool_params.get(name, {}).get("required"))
+        if not present and not required:
+            continue
+        value = str(params.get(name) or "").strip()
+        if value.startswith("/data/"):
+            continue
+        base = os.path.basename(value.replace("\\", "/"))
+        stem, ext = os.path.splitext(base)
+        stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", stem).strip("-.") or f"{tool_id}-{stamp}"
+        ext = ext.lower() if re.fullmatch(r"\.[A-Za-z0-9]{2,8}", ext or "") else _output_extension(tool_id, kind, kinds)
+        (DATA / uid).mkdir(parents=True, exist_ok=True)
+        params[name] = f"/data/{uid}/{stem}{ext}"
+    return {**req, "parameters": params}
+
+
 def prepare_request(req: dict, utm: bool) -> tuple[dict, int | None]:
     """Make a Whitebox request runnable on the server:
     - raster/vector inputs that are map layers from this server become the server files;
@@ -378,7 +433,7 @@ async def whitebox_run(request: Request):
     raw = await request.body()
     body = raw
     try:
-        req = json.loads(raw)
+        req = place_outputs(json.loads(raw), (request.headers.get("x-participant") or "").strip().lower())
         new, epsg = prepare_request(req, utm=request.headers.get("x-auto-project", "").lower() == "utm")
         if epsg:
             record_output_crs(new, epsg)

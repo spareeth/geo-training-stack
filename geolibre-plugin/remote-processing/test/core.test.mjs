@@ -42,6 +42,13 @@ test("makeFetch asks for UTM on Whitebox runs unless metres is off", async () =>
   assert.deepEqual(seen.map((s) => s[1]), ["utm", null, null]);
 });
 
+test("makeFetch sends the participant folder with sidecar calls", async () => {
+  let got = null;
+  const orig = async (u, init) => { got = init.headers.get("X-Participant"); };
+  await core.makeFetch(orig, () => ({ server: "https://sc", code: "k", uid: "u-abc123456" }), "https://web.geolibre.app")("https://web.geolibre.app/sidecar/whitebox/run", {});
+  assert.equal(got, "u-abc123456");
+});
+
 test("participant ids are random, lower-case and valid", () => {
   const a = core.newParticipantId(), b = core.newParticipantId();
   assert.ok(core.isParticipantId(a) && core.isParticipantId(b) && a !== b);

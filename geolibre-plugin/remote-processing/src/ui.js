@@ -36,7 +36,18 @@ let originalFetch = null;
 function installFetch() {
   if (originalFetch) return;
   originalFetch = globalThis.fetch.bind(globalThis);
-  globalThis.fetch = makeFetch(originalFetch, () => config, globalThis.location.origin);
+  const remote = makeFetch(originalFetch, () => config, globalThis.location.origin);
+  globalThis.fetch = async (input, init) => {
+    const response = await remote(input, init);
+    // When GeoLibre sees a Whitebox job finish, tell the panel so the file list refreshes.
+    const url = typeof input === "string" ? input : input?.url || "";
+    if (config.server && /\/sidecar\/whitebox\/jobs\//.test(url) && response.ok) {
+      response.clone().json().then((job) => {
+        if (job?.status === "succeeded") globalThis.dispatchEvent(new CustomEvent("remote-processing:job-done", { detail: job }));
+      }).catch(() => {});
+    }
+    return response;
+  };
 }
 
 function restoreFetch() {
@@ -328,8 +339,8 @@ function createPanel(app) {
         el("li", {}, "Upload your rasters in the ", ui("Data"), " tab. Vector layers on the map need no upload."),
         el("li", {}, "Open ", menu("Processing", "Whitebox Toolbox"), " (or ", menu("GeoLibre Toolbox"), ") and untick ", ui("Run locally (WASM)"), "."),
         el("li", {}, "For raster inputs choose ", ui("Path"), " and paste the server path (", ui("Copy path"), " in the Data tab)."),
-        el("li", {}, "Set the output to a new file in your folder, e.g. ", el("code", {}, `/data/${config.uid}/slope.tif`), ", and click ", ui("Run"), "."),
-        el("li", {}, "In the Data tab, click ", ui("Refresh"), ", then ", ui("Add to map"), " or ", ui("Download"), " the result."))),
+        el("li", {}, "Output: leave ", ui("Auto"), " or type a name such as ", el("code", {}, "slope"), ". It is saved in your folder automatically. Then click ", ui("Run"), "."),
+        el("li", {}, "The result appears in the ", ui("Data"), " tab when the tool finishes: ", ui("Add to map"), " or ", ui("Download"), " it."))),
     el("section", { class: "rp-card rp-doc" }, el("h3", {}, "Zonal statistics"),
       el("ol", {},
         el("li", {}, "Load or draw your zones on the map (", menu("Add Data", "Vector Layer"), " or ", menu("Plugins", "GeoEditor"), ")."),
@@ -338,7 +349,7 @@ function createPanel(app) {
     el("section", { class: "rp-card rp-doc" }, el("h3", {}, "Tips"),
       el("ul", {},
         el("li", {}, "A tool that fails to read its input usually still has ", ui("Run locally (WASM)"), " ticked."),
-        el("li", {}, "Always include your folder in output paths; with ", ui("Auto"), " the result goes to a temporary place."),
+        el("li", {}, "Outputs: ", ui("Auto"), " gives a name like ", el("code", {}, "slope-20261008-153000.tif"), "; a name you type replaces an existing file of the same name."),
         el("li", {}, "Click a server raster in the Layers panel to style it: colormap, bands, rescale."),
         el("li", {}, "Clip large rasters to your study area before uploading."))));
 
@@ -359,6 +370,8 @@ function createPanel(app) {
   root.append(tabBar, dataTab, helpTab);
   showTab(config.server ? "data" : "help");
 
+  const onJobDone = () => { if (root.isConnected) refresh(); };
+  globalThis.addEventListener("remote-processing:job-done", onJobDone);
   refresh();
   check().then((ok) => { if (ok) refresh(); });
   return root;
