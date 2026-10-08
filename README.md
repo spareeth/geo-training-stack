@@ -1,10 +1,10 @@
 # Geo training stack
 
-
 > **Using the public GeoLibre web app instead?** [`remote-sidecar/`](remote-sidecar/README.md) is a
 > much smaller deployment: participants open https://web.geolibre.app, install the Remote Processing
 > plugin, and GeoLibre's own Whitebox tools and zonal statistics run on your server. Its README has
 > the step-by-step [participant guide](remote-sidecar/README.md#for-participants).
+
 Browser-only GIS for training. Trainees install nothing. Heavy analysis runs on this server.
 
 | URL | What | Runs where |
