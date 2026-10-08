@@ -129,7 +129,11 @@ path/URL. Returns GeoJSON, which can be dropped straight into GeoLibre. Add head
 `Prefer: respond-async` for long jobs. Zones are reprojected to the raster CRS automatically.
 
 ## Case studies
-[`docs/CASE_STUDIES.md`](docs/CASE_STUDIES.md): five worked workflows with a (hypothetical) project
+[`docs/CASE_STUDIES_UGANDA.md`](docs/CASE_STUDIES_UGANDA.md): Uganda 2024 census to Moroto district
+(selecting by attributes, access to schools and health centres, road corridor screening with slope
+and land cover), for web.geolibre.app with the Remote Processing plugin.
+
+[`docs/CASE_STUDIES.md`](docs/CASE_STUDIES.md) (self-hosted stack): five worked workflows with a (hypothetical) project
 narrative: health access (accessibility), school siting (suitability), road corridor screening
 (buffer screening + Overture buildings), check-dam siting with GeoLibre's own Whitebox tools on the
 server, and a district profile (zonal statistics to CSV).
