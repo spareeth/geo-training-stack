@@ -31,6 +31,18 @@
 		file_server
 	}
 
+	# Course data zip and guide (public, open data). Files are copied to ./downloads on the server.
+	handle_path /downloads/* {
+		root * /srv/downloads
+		header Content-Disposition attachment
+		file_server
+	}
+	handle /guide {
+		root * /srv/downloads
+		rewrite * /CASE_STUDIES_UGANDA.html
+		file_server
+	}
+
 	# Plugin manifest and code: public, so GeoLibre can install it.
 	handle_path /plugin/* {
 		root * /srv/plugin

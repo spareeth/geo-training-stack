@@ -51,3 +51,4 @@ services:
       - sidecar_data:/srv/data:ro
       - ../geolibre-plugin/remote-processing:/srv/plugin:ro
       - ./landing:/srv/landing:ro
+      - ./downloads:/srv/downloads:ro
