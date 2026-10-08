@@ -23,6 +23,14 @@
 		respond 204
 	}
 
+	# Landing page with participant instructions (public). The API itself needs the access code.
+	@landing path / /index.html
+	handle @landing {
+		root * /srv/landing
+		rewrite * /index.html
+		file_server
+	}
+
 	# Plugin manifest and code: public, so GeoLibre can install it.
 	handle_path /plugin/* {
 		root * /srv/plugin

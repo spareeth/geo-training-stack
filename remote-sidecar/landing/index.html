@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoLibre processing server</title>
+<style>
+  :root { --bg: #f8fafc; --card: #ffffff; --text: #1f2937; --muted: #6b7280; --accent: #2563eb; --border: #e5e7eb; --code: #f1f5f9; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f172a; --card: #111827; --text: #f3f4f6; --muted: #9ca3af; --accent: #60a5fa; --border: #374151; --code: #1f2937; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 20px; }
+  ol { padding-left: 20px; }
+  li { margin: 10px 0; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  code { background: var(--code); border-radius: 6px; padding: 4px 8px; font-size: .9rem; word-break: break-all; }
+  a.button, button { display: inline-block; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px 14px;
+    font: inherit; font-size: .95rem; text-decoration: none; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); padding: 4px 10px; }
+  .note { color: var(--muted); font-size: .9rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>GeoLibre processing server</h1>
+    <p class="lead">This server runs GeoLibre's Whitebox tools and zonal statistics for course participants.
+      You do not use it directly: you work in GeoLibre in your browser, and the Remote Processing plugin
+      connects to this server.</p>
+    <ol>
+      <li>Open GeoLibre:
+        <div class="row"><a class="button" href="https://web.geolibre.app" target="_blank" rel="noopener">Open web.geolibre.app</a></div></li>
+      <li>Install the plugin: <b>Settings &gt; Manage Plugins &gt; Settings</b> tab, paste this under <b>Manifest URLs</b>, click <b>Add</b>:
+        <div class="row"><code id="plugin"></code><button class="secondary" type="button" id="copy">Copy</button></div></li>
+      <li>Turn it on: <b>Plugins &gt; Installed &gt; Remote Processing</b>, then <b>Remote Processing &gt; Server connection and files</b>.</li>
+      <li>Enter the server address <code id="server"></code> and the <b>access code</b> from your trainer, then <b>Save and connect</b>.</li>
+    </ol>
+    <p class="note">Step-by-step guide: <a href="https://github.com/spareeth/geo-training-stack/blob/main/remote-sidecar/README.md#for-participants" target="_blank" rel="noopener">participant guide</a>.
+      The access code is only typed into the plugin, never on this page.</p>
+  </div>
+</main>
+<script>
+  const origin = location.origin;
+  document.getElementById("server").textContent = origin;
+  const url = origin + "/plugin/plugin.json";
+  document.getElementById("plugin").textContent = url;
+  document.getElementById("copy").addEventListener("click", async (e) => {
+    try { await navigator.clipboard.writeText(url); e.target.textContent = "Copied"; } catch { e.target.textContent = "Select and copy"; }
+    setTimeout(() => { e.target.textContent = "Copy"; }, 2000);
+  });
+</script>
+</body>
+</html>
