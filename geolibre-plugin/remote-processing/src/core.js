@@ -50,6 +50,16 @@ export function makeFetch(originalFetch, getConfig, origin) {
   };
 }
 
+/** Random participant folder id, e.g. "u-7f3k9q2m1x" (letters and digits only). */
+export function newParticipantId(random = (n) => crypto.getRandomValues(new Uint8Array(n))) {
+  const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return `u-${[...random(10)].map((b) => abc[b % abc.length]).join("")}`;
+}
+
+export function isParticipantId(value) {
+  return /^u-[a-z0-9]{6,32}$/.test(value || "");
+}
+
 export function fileKind(name) {
   const n = (name || "").toLowerCase();
   if (/\.tiff?$/.test(n)) return "raster";

@@ -41,9 +41,9 @@ Only `geolibre-plugin/remote-processing/` from the parent folder is used (mounte
    them with the job).
 2. **Processing > Whitebox Toolbox** (or GeoLibre Toolbox), pick a tool, **untick "Run locally
    (WASM)"**.
-3. Raster inputs: the server path, e.g. `/data/dem.tif` (**Copy path** in the plugin). Output: a new
-   path under `/data`, e.g. `/data/ab-slope.tif`. Without one, the output goes to a temporary folder
-   the plugin cannot list.
+3. Raster inputs: the server path (**Copy path** in the plugin), e.g. `/data/u-7f3k9q2m1x/dem.tif`.
+   Output: a new file in your folder, e.g. `/data/u-7f3k9q2m1x/slope.tif`. Without one, the output
+   goes to a temporary folder the plugin cannot list.
 4. **Run**, then **Refresh** in the plugin and **Add to map** or **Download**.
 
 ## Zonal statistics (raster + vector zones)
@@ -76,9 +76,19 @@ Whitebox **Zonal Statistics** in the Whitebox Toolbox also works, but it takes t
   with small distortion towards the edges. Untick the option to keep the data's own CRS.
 - **Image fix.** The published GeoLibre image lacks `contourpy`, which its sidecar's raster runtime
   needs; `Dockerfile.geolibre` adds it. Remove it once the upstream image includes it.
-- **Shared folder.** Everyone with the access code sees the same `/data`. Ask participants to prefix
-  file names with their initials. Change `ACCESS_CODE` per course; clear old files with
-  `sudo docker compose exec files sh -c 'rm -rf /data/*'`.
+- **Personal folders.** The first time the plugin runs in a browser it creates a random folder id
+  (`u-` + 10 letters/digits) and keeps it in that browser: uploads, the file list, deletes and zonal
+  statistics use `/data/<id>/`, so participants with files of the same name do not overwrite each
+  other, and nobody can delete someone else's files from the plugin. Uploading a name that already
+  exists in your folder asks before replacing it. Clearing browser data or switching browser creates
+  a new id: the panel shows the id, and **Use an existing folder id** gets the old files back.
+  This prevents accidents, not misuse: anyone with the access code can still type another folder's
+  path into a GeoLibre tool by hand.
+- **Shared files.** Files placed at the top of the volume (`/data/...`, e.g. course data copied in
+  with `sudo docker compose cp mydata.tif files:/data/`) are listed to everyone as read-only
+  **Shared files** and can be used as inputs.
+- **Cleaning up.** Change `ACCESS_CODE` per course; clear participant folders with
+  `sudo docker compose exec files sh -c 'rm -rf /data/u-* /data/.display /data/.crs /data/.utm'`.
 - **How it works.** GeoLibre's web build always calls `<its own address>/sidecar`; the plugin wraps
   the browser's `fetch` so those calls go to this server instead. This relies on GeoLibre internals
   and is not an official plugin API, so re-test after GeoLibre updates (tested with

@@ -42,6 +42,13 @@ test("makeFetch asks for UTM on Whitebox runs unless metres is off", async () =>
   assert.deepEqual(seen.map((s) => s[1]), ["utm", null, null]);
 });
 
+test("participant ids are random, lower-case and valid", () => {
+  const a = core.newParticipantId(), b = core.newParticipantId();
+  assert.ok(core.isParticipantId(a) && core.isParticipantId(b) && a !== b);
+  assert.equal(core.newParticipantId((n) => new Uint8Array(n)), "u-aaaaaaaaaa");
+  assert.ok(!core.isParticipantId("u-AB") && !core.isParticipantId("../x") && !core.isParticipantId("u-a"));
+});
+
 test("fileKind", () => {
   assert.equal(core.fileKind("dem.TIF"), "raster");
   assert.equal(core.fileKind("roads.geojson"), "vector");

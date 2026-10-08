@@ -3,11 +3,15 @@
 GeoLibre's sidecar reads and writes only its /data folder, and its raster tools take file paths. This
 small API lets participants put their own data there from the browser and get results back:
 
-  GET    /files                 list files in /data
-  PUT    /files/{name}          upload (raw request body; the plugin sends the file as-is)
-  DELETE /files/{name}          delete
-  POST   /files/{name}/display  make a map-ready copy (Cloud Optimized GeoTIFF in EPSG:3857 tiling)
-                                of a raster and return its URL path under /data/
+  GET    /files                 the participant's files (/data/u-<id>) and the shared files (/data)
+  PUT    /files/{name}          upload to the participant's folder (raw body; "If-None-Match: *"
+                                refuses to replace an existing file)
+  DELETE /files/{name}          delete from the participant's folder
+  POST   /files/{name}/display  map-ready copy (Cloud Optimized GeoTIFF) of a raster, ?scope=shared
+  GET    /files/{name}/geojson  a vector file in lat/lon for the map, ?scope=shared
+
+Each plugin installation sends its own folder id (X-Participant: u-<random>), so participants do not
+overwrite each other's files. Files at the top of /data are shared and read-only through this API.
 
 Runs from the GeoLibre image (FastAPI, rasterio, rio-cogeo are already there). Access control,
 CORS and HTTPS are handled by Caddy in front of it.
@@ -30,6 +34,12 @@ ALLOWED = (".tif", ".tiff", ".geojson", ".json", ".gpkg", ".fgb", ".csv", ".zip"
 app = FastAPI(title="GeoLibre shared sidecar files", docs_url=None, redoc_url=None)
 
 
+PARTICIPANT = re.compile(r"^u-[a-z0-9]{6,32}$")
+CRS_DIR = ".crs"
+RASTER_EXT = (".tif", ".tiff")
+VECTOR_EXT = (".geojson", ".json", ".gpkg", ".fgb", ".parquet")
+
+
 def safe_name(name: str) -> str:
     base = os.path.basename(name or "").strip()
     stem, ext = os.path.splitext(base)
@@ -40,35 +50,66 @@ def safe_name(name: str) -> str:
     return stem + ext
 
 
-def target(name: str) -> Path:
-    path = (DATA / safe_name(name)).resolve()
-    if path.parent != DATA.resolve():
+def participant_dir(request: Request) -> Path:
+    """Each plugin installation has its own folder /data/u-<random id> (sent as X-Participant)."""
+    pid = (request.headers.get("x-participant") or "").strip().lower()
+    if not PARTICIPANT.match(pid):
+        raise HTTPException(400, "missing or invalid participant folder id (update the plugin)")
+    folder = DATA / pid
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def target(name: str, folder: Path) -> Path:
+    path = (folder / safe_name(name)).resolve()
+    if path.parent != folder.resolve():
         raise HTTPException(400, "invalid file name")
     return path
 
 
+def readable(name: str, request: Request, scope: str) -> Path:
+    """Own folder by default; scope=shared reads files the trainer put at the top of /data."""
+    return target(name, DATA if scope == "shared" else participant_dir(request))
+
+
+def crs_meta(path: Path) -> Path:
+    """Where the projection of an auto-projected job output is recorded (unique per full path)."""
+    rel = Path(path).resolve().relative_to(DATA.resolve())
+    return DATA / CRS_DIR / ("__".join(rel.parts) + ".json")
+
+
+def describe(p: Path) -> dict:
+    st = p.stat()
+    ext = p.suffix.lower()
+    return {"name": p.name, "path": "/" + str(Path("data") / p.resolve().relative_to(DATA.resolve())),
+            "size_mb": round(st.st_size / 1e6, 2),
+            "modified": time.strftime("%Y-%m-%d %H:%M", time.gmtime(st.st_mtime)),
+            "kind": "raster" if ext in RASTER_EXT else "vector" if ext in VECTOR_EXT else "file"}
+
+
+def files_in(folder: Path) -> list:
+    if not folder.is_dir():
+        return []
+    return [describe(p) for p in sorted(folder.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+            if p.is_file() and not p.name.startswith(".")]
+
+
 @app.get("/files")
-def list_files():
-    DATA.mkdir(parents=True, exist_ok=True)
-    out = []
-    for p in sorted(DATA.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
-        if p.is_file() and not p.name.startswith("."):
-            st = p.stat()
-            out.append({"name": p.name, "path": f"/data/{p.name}", "size_mb": round(st.st_size / 1e6, 2),
-                        "modified": time.strftime("%Y-%m-%d %H:%M", time.gmtime(st.st_mtime)),
-                        "kind": "raster" if p.suffix.lower() in (".tif", ".tiff") else
-                                "vector" if p.suffix.lower() in (".geojson", ".json", ".gpkg", ".fgb", ".parquet") else "file"})
-    return {"files": out, "folder": "/data"}
+def list_files(request: Request):
+    folder = participant_dir(request)
+    return {"folder": f"/data/{folder.name}", "files": files_in(folder), "shared": files_in(DATA)}
 
 
 @app.put("/files/{name}")
 async def upload(name: str, request: Request):
-    path = target(name)
+    folder = participant_dir(request)
+    path = target(name, folder)
+    if request.headers.get("if-none-match") == "*" and path.exists():
+        raise HTTPException(412, f"{path.name} already exists in your folder")
     declared = int(request.headers.get("content-length") or 0)
     if declared > MAX_UPLOAD:
         raise HTTPException(413, f"file too large (limit {MAX_UPLOAD // 1024 // 1024} MB)")
-    DATA.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=DATA, prefix=".upload-")
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".upload-")
     size = 0
     try:
         with os.fdopen(fd, "wb") as f:
@@ -78,31 +119,34 @@ async def upload(name: str, request: Request):
                     raise HTTPException(413, f"file too large (limit {MAX_UPLOAD // 1024 // 1024} MB)")
                 f.write(chunk)
         os.replace(tmp, path)
+        crs_meta(path).unlink(missing_ok=True)  # a new upload is in its own CRS
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
-    return {"name": path.name, "path": f"/data/{path.name}", "size_mb": round(size / 1e6, 2)}
+    return {**describe(path), "size_mb": round(size / 1e6, 2)}
 
 
 @app.delete("/files/{name}")
-def delete(name: str):
-    path = target(name)
+def delete(name: str, request: Request):
+    folder = participant_dir(request)
+    path = target(name, folder)
     if not path.exists():
         raise HTTPException(404, "no such file")
     path.unlink()
-    shutil.rmtree(DATA / DISPLAY_DIR / path.stem, ignore_errors=True)
-    (DATA / ".crs" / (path.name + ".json")).unlink(missing_ok=True)
+    shutil.rmtree(DATA / DISPLAY_DIR / folder.name / path.stem, ignore_errors=True)
+    crs_meta(path).unlink(missing_ok=True)
     return {"deleted": path.name}
 
 
 @app.post("/files/{name}/display")
-def display(name: str):
+def display(name: str, request: Request, scope: str = "own"):
     """Map-ready copy: GeoLibre draws rasters in the browser from Cloud Optimized GeoTIFFs, while
     Whitebox writes plain GeoTIFFs. The copy is cached until the source changes."""
-    src = target(name)
-    if not src.exists() or src.suffix.lower() not in (".tif", ".tiff"):
+    src = readable(name, request, scope)
+    if not src.exists() or src.suffix.lower() not in RASTER_EXT:
         raise HTTPException(404, "no such raster")
-    out_dir = DATA / DISPLAY_DIR / src.stem
+    owner = "_shared" if scope == "shared" else src.parent.name
+    out_dir = DATA / DISPLAY_DIR / owner / src.stem
     out = out_dir / f"{int(src.stat().st_mtime)}.tif"
     if not out.exists():
         from rio_cogeo.cogeo import cog_translate
@@ -120,7 +164,7 @@ def display(name: str):
     with rasterio.open(out) as ds:
         band = ds.read(1, masked=True, out_shape=(1, min(ds.height, 512), min(ds.width, 512)))
         stats = {"min": float(band.min()), "max": float(band.max())} if band.count() else {}
-    return {"url": f"/data/{DISPLAY_DIR}/{src.stem}/{out.name}", **stats}
+    return {"url": f"/data/{DISPLAY_DIR}/{owner}/{src.stem}/{out.name}", **stats}
 
 
 # ---------------- automatic projection for Whitebox jobs ----------------
@@ -136,7 +180,6 @@ import urllib.error
 import urllib.request
 
 SIDECAR = os.environ.get("SIDECAR_URL", "http://geolibre:80/sidecar")
-CRS_DIR = ".crs"
 UTM_DIR = ".utm"
 _tool_kinds: dict = {}
 
@@ -199,7 +242,8 @@ def _warp_to_utm(path: str, epsg: int) -> str:
     from rasterio.warp import Resampling, calculate_default_transform, reproject
 
     src_path = Path(path)
-    out = DATA / UTM_DIR / f"{src_path.stem}-{epsg}-{int(src_path.stat().st_mtime)}.tif"
+    key = "__".join(src_path.resolve().relative_to(DATA.resolve()).with_suffix("").parts)
+    out = DATA / UTM_DIR / f"{key}-{epsg}-{int(src_path.stat().st_mtime)}.tif"
     if out.exists():
         return str(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +302,7 @@ def record_output_crs(req: dict, epsg: int) -> None:
     kinds = param_kinds(req.get("tool_id", ""), req.get("tool"))
     for k, v in (req.get("parameters") or {}).items():
         if kinds.get(k, "").endswith("_out") and isinstance(v, str) and v.startswith("/data/"):
-            meta = DATA / CRS_DIR / (Path(v).name + ".json")
+            meta = crs_meta(Path(v))
             meta.parent.mkdir(parents=True, exist_ok=True)
             meta.write_text(json.dumps({"epsg": epsg}))
 
@@ -291,7 +335,7 @@ def vector_display(src: Path) -> dict:
     """GeoJSON in lat/lon for the map. Outputs of auto-projected jobs carry their recorded CRS."""
     import geopandas as gpd
 
-    meta = DATA / CRS_DIR / (src.name + ".json")
+    meta = crs_meta(src)
     gdf = gpd.read_file(src)
     if meta.exists():
         gdf = gdf.set_crs(json.loads(meta.read_text())["epsg"], allow_override=True)
@@ -305,7 +349,8 @@ def whitebox_output(path: str):
     """GeoLibre loads vector outputs of Whitebox jobs through this sidecar route. Outputs of
     auto-projected jobs are in UTM: return them in lat/lon so the layer lands in the right place."""
     p = Path(path)
-    if p.parent == DATA and (DATA / CRS_DIR / (p.name + ".json")).exists() and p.exists():
+    inside = p.resolve().is_relative_to(DATA.resolve())
+    if inside and p.exists() and crs_meta(p).exists():
         try:
             return vector_display(p)
         except Exception as e:
@@ -319,8 +364,8 @@ def whitebox_output(path: str):
 
 
 @app.get("/files/{name}/geojson")
-def geojson_for_map(name: str):
-    src = target(name)
+def geojson_for_map(name: str, request: Request, scope: str = "own"):
+    src = readable(name, request, scope)
     if not src.exists():
         raise HTTPException(404, "no such file")
     try:

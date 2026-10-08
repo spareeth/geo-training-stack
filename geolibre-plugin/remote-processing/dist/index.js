@@ -51,6 +51,16 @@ function makeFetch(originalFetch, getConfig, origin) {
   };
 }
 
+/** Random participant folder id, e.g. "u-7f3k9q2m1x" (letters and digits only). */
+function newParticipantId(random = (n) => crypto.getRandomValues(new Uint8Array(n))) {
+  const abc = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return `u-${[...random(10)].map((b) => abc[b % abc.length]).join("")}`;
+}
+
+function isParticipantId(value) {
+  return /^u-[a-z0-9]{6,32}$/.test(value || "");
+}
+
 function fileKind(name) {
   const n = (name || "").toLowerCase();
   if (/\.tiff?$/.test(n)) return "raster";
@@ -118,6 +128,11 @@ function saveConfig(cfg) {
 }
 
 let config = loadConfig();
+// Each installation gets its own folder on the server, created on first use and kept in this browser.
+if (!isParticipantId(config.uid)) {
+  config = { ...config, uid: newParticipantId() };
+  saveConfig(config);
+}
 let originalFetch = null;
 
 function installFetch() {
@@ -134,6 +149,7 @@ function restoreFetch() {
 function serverFetch(path, init = {}) {
   const headers = new Headers(init.headers);
   headers.set("X-Access-Code", config.code || "");
+  headers.set("X-Participant", config.uid);
   return (originalFetch || globalThis.fetch)(`${config.server}${path}`, { ...init, headers });
 }
 
@@ -178,19 +194,33 @@ function createPanel(app) {
 
   const save = el("button", { type: "button", class: "rp-primary" }, "Save and connect");
   save.addEventListener("click", async () => {
-    config = { server: normalizeServer(server.value), code: code.value.trim(), metres: metres.checked };
+    config = { ...config, server: normalizeServer(server.value), code: code.value.trim(), metres: metres.checked };
     server.value = config.server;
     saveConfig(config);
     if (await check()) refresh();
   });
   const disconnect = el("button", { type: "button" }, "Disconnect");
   disconnect.addEventListener("click", () => {
-    config = {};
+    config = { uid: config.uid };  // keep the folder id
     saveConfig(config);
     server.value = "";
     code.value = "";
     check();
     list.replaceChildren();
+  });
+
+  // ---- your folder ----
+  const folderCode = el("code", {}, `/data/${config.uid}`);
+  const otherId = el("input", { type: "text", placeholder: "u-..." });
+  const useOther = el("button", { type: "button" }, "Use this folder");
+  useOther.addEventListener("click", () => {
+    const id = otherId.value.trim().toLowerCase();
+    if (!isParticipantId(id)) { notice("A folder id looks like u-7f3k9q2m1x", true); return; }
+    config = { ...config, uid: id };
+    saveConfig(config);
+    folderCode.textContent = `/data/${id}`;
+    otherId.value = "";
+    refresh();
   });
 
   // ---- upload ----
@@ -204,7 +234,14 @@ function createPanel(app) {
     for (const f of files) {
       progress.textContent = `Uploading ${f.name} (${(f.size / 1e6).toFixed(1)} MB)...`;
       try {
-        const out = await serverJson(`/files/${encodeURIComponent(f.name)}`, { method: "PUT", body: f });
+        const url = `/files/${encodeURIComponent(f.name)}`;
+        let r = await serverFetch(url, { method: "PUT", body: f, headers: { "If-None-Match": "*" } });
+        if (r.status === 412) {
+          if (!confirm(`${f.name} is already in your folder. Replace it?`)) continue;
+          r = await serverFetch(url, { method: "PUT", body: f });
+        }
+        const out = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(out.detail || `upload failed (${r.status})`);
         notice(`Uploaded: ${out.path}`);
       } catch (e) { notice(`${f.name}: ${e.message}`, true); }
     }
@@ -221,41 +258,47 @@ function createPanel(app) {
     try {
       if (f.kind === "raster") {
         notice(`Preparing ${f.name} for the map...`);
-        const d = await serverJson(`/files/${encodeURIComponent(f.name)}/display`, { method: "POST" });
+        const d = await serverJson(`/files/${encodeURIComponent(f.name)}/display?scope=${f.scope || "own"}`, { method: "POST" });
         const opts = Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min ? { rescaleMin: d.min, rescaleMax: d.max } : {};
         app.addCogLayer?.(f.name, withCode(`${config.server}${d.url}`, config.code), { colormap: "viridis", ...opts });
       } else {
         // Vectors come back in lat/lon (results of auto-projected jobs are converted from UTM).
-        app.addGeoJsonLayer?.(f.name, await serverJson(`/files/${encodeURIComponent(f.name)}/geojson`));
+        app.addGeoJsonLayer?.(f.name, await serverJson(`/files/${encodeURIComponent(f.name)}/geojson?scope=${f.scope || "own"}`));
       }
       notice(`Added ${f.name}`);
     } catch (e) { notice(e.message, true); }
   }
 
   async function remove(f) {
-    if (!confirm(`Delete ${f.name} from the server? Other participants may be using it.`)) return;
+    if (!confirm(`Delete ${f.name} from your folder on the server?`)) return;
     try { await serverJson(`/files/${encodeURIComponent(f.name)}`, { method: "DELETE" }); refresh(); } catch (e) { notice(e.message, true); }
   }
 
   let serverFiles = [];
+
+  function fileItem(f, shared) {
+    const kind = fileKind(f.name);
+    return el("div", { class: "rp-item" },
+      el("div", {}, el("span", { class: `rp-badge rp-${f.kind}` }, f.kind), " ", el("b", {}, f.name),
+        el("small", {}, ` ${f.size_mb} MB, ${f.modified} UTC`)),
+      el("code", {}, f.path),
+      el("div", { class: "rp-row" },
+        el("button", { type: "button", onclick: () => copy(f.path) }, "Copy path"),
+        kind !== "file" ? el("button", { type: "button", onclick: () => addToMap({ ...f, kind, scope: shared ? "shared" : "own" }) }, "Add to map") : null,
+        el("a", { class: "rp-button", href: withCode(`${config.server}${f.path}`, config.code), download: f.name, target: "_blank" }, "Download"),
+        shared ? null : el("button", { type: "button", onclick: () => remove(f) }, "Delete")));
+  }
 
   async function refresh() {
     if (!config.server) return;
     list.replaceChildren("Loading...");
     try {
       const r = await serverJson("/files");
-      serverFiles = r.files;
+      serverFiles = [...r.files, ...(r.shared || []).map((f) => ({ ...f, shared: true }))];
       fillZonalPickers();
-      list.replaceChildren(...(r.files.length ? r.files.map((f) => el("div", { class: "rp-item" },
-        el("div", {}, el("span", { class: `rp-badge rp-${f.kind}` }, f.kind), " ", el("b", {}, f.name),
-          el("small", {}, ` ${f.size_mb} MB, ${f.modified} UTC`)),
-        el("code", {}, f.path),
-        el("div", { class: "rp-row" },
-          el("button", { type: "button", onclick: () => copy(f.path) }, "Copy path"),
-          f.kind !== "file" || fileKind(f.name) !== "file" ? el("button", { type: "button", onclick: () => addToMap({ ...f, kind: fileKind(f.name) }) }, "Add to map") : null,
-          el("a", { class: "rp-button", href: withCode(`${config.server}/data/${encodeURIComponent(f.name)}`, config.code), download: f.name, target: "_blank" }, "Download"),
-          el("button", { type: "button", onclick: () => remove(f) }, "Delete"))))
-        : ["No files yet. Upload your data above."]));
+      list.replaceChildren(
+        ...(r.files.length ? r.files.map((f) => fileItem(f, false)) : ["Your folder is empty. Upload your data above."]),
+        ...(r.shared?.length ? [el("h4", {}, "Shared files (from the trainer, read-only)"), ...r.shared.map((f) => fileItem(f, true))] : []));
     } catch (e) { list.replaceChildren(el("p", { class: "rp-error-text" }, e.message)); }
   }
 
@@ -273,10 +316,10 @@ function createPanel(app) {
 
   function fillZonalPickers() {
     const keep = [zRaster.value, zZones.value];
-    zRaster.replaceChildren(...serverFiles.filter((f) => f.kind === "raster").map((f) => el("option", { value: f.path }, f.name)));
+    zRaster.replaceChildren(...serverFiles.filter((f) => f.kind === "raster").map((f) => el("option", { value: f.path }, f.shared ? `Shared: ${f.name}` : f.name)));
     zZones.replaceChildren(
       ...vectorLayers().map((l) => el("option", { value: `layer:${l.id}` }, `Map layer: ${l.name}`)),
-      ...serverFiles.filter((f) => /\.(geojson|json)$/i.test(f.name)).map((f) => el("option", { value: f.path }, `Server file: ${f.name}`)));
+      ...serverFiles.filter((f) => /\.(geojson|json)$/i.test(f.name)).map((f) => el("option", { value: f.path }, `${f.shared ? "Shared file" : "Server file"}: ${f.name}`)));
     if ([...zRaster.options].some((o) => o.value === keep[0])) zRaster.value = keep[0];
     if ([...zZones.options].some((o) => o.value === keep[1])) zZones.value = keep[1];
   }
@@ -304,17 +347,16 @@ function createPanel(app) {
         const features = app.getLayerFeatures?.(id) || [];
         if (!features.length) throw new Error("That layer has no features");
         zStatus.textContent = "Sending the zones to the server...";
-        const name = `zones-${safeStem(layer?.name)}.geojson`;
+        const name = `zones-${safeStem(layer?.name)}-${Date.now().toString(36)}.geojson`;
         const up = await serverJson(`/files/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify({ type: "FeatureCollection", features }) });
         zonesPath = up.path;
       }
       const rasterName = zRaster.selectedOptions[0]?.textContent || "raster";
-      const output = `/data/zonal-${safeStem(rasterName)}-${Date.now().toString(36)}.geojson`;
+      const output = `/data/${config.uid}/zonal-${safeStem(rasterName)}-${Date.now().toString(36)}.geojson`;
       zStatus.textContent = "Computing on the server...";
       const job = await runRasterTool(serverJson, { toolId: "zonal", input: zRaster.value, output,
         parameters: { zones_path: zonesPath, band: Number(zBand.value) || 1, prefix: zPrefix.value.trim() } });
-      const r = await serverFetch(`/data/${encodeURIComponent(output.split("/").pop())}`);
-      const fc = await r.json();
+      const fc = await serverJson(`/files/${encodeURIComponent(output.split("/").pop())}/geojson`);
       app.addGeoJsonLayer?.(`Zonal statistics: ${rasterName}`, fc);
       zStatus.textContent = `${(job.messages || []).slice(-1)[0] || "Done"}. Click a zone on the map to see its values.`;
       if (zCsv.checked) downloadText(featuresToCsv(fc), `${output.split("/").pop().replace(/\.geojson$/, "")}.csv`, "text/csv");
@@ -336,9 +378,13 @@ function createPanel(app) {
       el("ol", {},
         el("li", {}, "Upload your rasters below (vector layers on the map need no upload)."),
         el("li", {}, "Processing > Whitebox Toolbox (or GeoLibre Toolbox): untick \"Run locally (WASM)\"."),
-        el("li", {}, "For raster inputs choose Path and paste the server path (/data/...)."),
-        el("li", {}, "Set the output to a new path under /data, e.g. /data/yourname-slope.tif, and Run."),
+        el("li", {}, "For raster inputs choose Path and paste the server path (Copy path below)."),
+        el("li", {}, "Set the output to a new file in your folder, e.g. ", el("code", {}, `/data/${config.uid}/slope.tif`), ", and Run."),
         el("li", {}, "Refresh the file list here and Add the result to the map, or Download it."))),
+    el("h4", {}, "Your folder"),
+    el("div", { class: "rp-row" }, folderCode, el("button", { type: "button", onclick: () => copy(`/data/${config.uid}`) }, "Copy")),
+    el("p", { class: "rp-muted" }, "Created for this browser. Note the id if you will switch browsers or clear browser data."),
+    el("details", {}, el("summary", {}, "Use an existing folder id"), el("div", { class: "rp-row" }, otherId, useOther)),
     el("h4", {}, "Upload your data"), picker, upload, progress,
     el("h4", {}, "Zonal statistics"),
     el("p", { class: "rp-muted" }, "GeoLibre's zonal statistics (count, min, max, mean, sum, std, median per zone), run on the server."),
