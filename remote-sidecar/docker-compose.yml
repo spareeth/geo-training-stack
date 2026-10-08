@@ -26,6 +26,12 @@ services:
     image: geolibre-sidecar:local
     restart: unless-stopped
     entrypoint: ["python", "-m", "uvicorn", "files_app:app", "--app-dir", "/app", "--host", "0.0.0.0", "--port", "8000"]
+    # The image's own healthcheck probes GeoLibre's web server, which does not run here.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     environment:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-500}
     volumes:
