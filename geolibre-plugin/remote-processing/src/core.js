@@ -1,6 +1,6 @@
 // Logic of the Remote Processing plugin that does not touch the page (tested with node --test).
 
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 export const STORAGE_KEY = "geolibre-remote-processing";
 
 /** "sidecar.example.org" or "https://sidecar.example.org/" -> "https://sidecar.example.org" */

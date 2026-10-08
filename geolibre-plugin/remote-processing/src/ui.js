@@ -163,13 +163,52 @@ function createPanel(app) {
   // ---- files ----
   const copy = (text) => navigator.clipboard?.writeText(text).then(() => notice(`Copied ${text}`), () => notice(text));
 
+  // ---- legend on the map for rasters added from the server (one box, one entry per raster) ----
+  const legends = new Map();
+  let legendBox = null;
+  const legendControl = {
+    onAdd() { return legendBox; },
+    onRemove() { legendBox?.remove(); },
+  };
+  function fmt(v) { return Math.abs(v) >= 100 ? Math.round(v).toLocaleString() : Number(v.toPrecision(3)).toString(); }
+  function renderLegends() {
+    legendBox.replaceChildren(...[...legends].map(([name, spec]) => {
+      const head = el("div", { class: "rp-lg-head" }, el("b", {}, name),
+        el("button", { type: "button", title: "Remove from legend", onclick: () => { legends.delete(name); renderLegends(); } }, "×"));
+      if (spec.classes) {
+        const dict = Object.fromEntries(spec.classes.map((c) => [c.label, c.color]));
+        return el("div", { class: "rp-lg" }, head,
+          ...spec.classes.map((c) => el("div", { class: "rp-lg-row" }, el("span", { class: "rp-lg-sw", style: `background:${c.color}` }), `${c.value} ${c.label}`)),
+          el("button", { type: "button", class: "rp-lg-copy", title: "For Project > Print Layout > Custom legend > Import from dictionary",
+            onclick: () => copy(JSON.stringify(dict)) }, "Copy for print legend"));
+      }
+      return el("div", { class: "rp-lg" }, head, el("div", { class: "rp-lg-bar" }),
+        el("div", { class: "rp-lg-scale" }, el("span", {}, fmt(spec.min)), el("span", {}, fmt(spec.max))));
+    }));
+    if (!legends.size && legendBox.isConnected) { app.removeMapControl?.(legendControl); }
+  }
+  function showLegend(name, spec) {
+    legends.set(name, spec);
+    if (!legendBox) legendBox = el("div", { class: "maplibregl-ctrl rp-legend" });
+    renderLegends();
+    if (!legendBox.isConnected) app.addMapControl?.(legendControl, "bottom-left");
+  }
+
   async function addToMap(f) {
     try {
       if (f.kind === "raster") {
         notice(`Preparing ${f.name} for the map...`);
         const d = await serverJson(`/files/${encodeURIComponent(f.name)}/display?scope=${f.scope || "own"}`, { method: "POST" });
-        const opts = Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min ? { rescaleMin: d.min, rescaleMax: d.max } : {};
-        app.addCogLayer?.(f.name, withCode(`${config.server}${d.url}`, config.code), { colormap: "viridis", ...opts });
+        const url = withCode(`${config.server}${d.url}`, config.code);
+        if (d.rgb) {
+          // Land cover in WorldCover codes: the server sends a copy painted in the official colours.
+          app.addCogLayer?.(f.name, url, { bands: "1,2,3", nodata: 0 });
+          showLegend(f.name, { classes: d.legend });
+        } else {
+          const opts = Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min ? { rescaleMin: d.min, rescaleMax: d.max } : {};
+          app.addCogLayer?.(f.name, url, { colormap: "viridis", ...opts });
+          if (opts.rescaleMin !== undefined) showLegend(f.name, { min: d.min, max: d.max });
+        }
       } else {
         // Vectors come back in lat/lon (results of auto-projected jobs are converted from UTM).
         app.addGeoJsonLayer?.(f.name, await serverJson(`/files/${encodeURIComponent(f.name)}/geojson?scope=${f.scope || "own"}`));

@@ -159,12 +159,51 @@ def display(name: str, request: Request, scope: str = "own"):
         except Exception as e:  # report unreadable rasters to the plugin
             shutil.rmtree(out_dir, ignore_errors=True)
             raise HTTPException(422, f"could not prepare {src.name} for display: {e}")
+    import numpy as np
     import rasterio
 
     with rasterio.open(out) as ds:
         band = ds.read(1, masked=True, out_shape=(1, min(ds.height, 512), min(ds.width, 512)))
         stats = {"min": float(band.min()), "max": float(band.max())} if band.count() else {}
-    return {"url": f"/data/{DISPLAY_DIR}/{owner}/{src.stem}/{out.name}", **stats}
+        classes = sorted(int(v) for v in np.unique(band.compressed())) if ds.dtypes[0] in ("uint8", "int16", "uint16") else []
+    url = f"/data/{DISPLAY_DIR}/{owner}/{src.stem}/{out.name}"
+    if classes and set(classes) <= set(WORLDCOVER_STYLE):
+        # Land cover in ESA WorldCover codes: an RGB copy in the official colours, plus its legend.
+        rgb = out.with_name(out.stem + "-worldcover.tif")
+        if not rgb.exists():
+            _worldcover_rgb(out, rgb)
+        legend = [{"value": v, "label": WORLDCOVER_STYLE[v][0], "color": WORLDCOVER_STYLE[v][1]} for v in classes]
+        return {"url": url.replace(out.name, rgb.name), "rgb": True, "legend": legend, **stats}
+    return {"url": url, **stats}
+
+
+WORLDCOVER_STYLE = {10: ("Tree cover", "#006400"), 20: ("Shrubland", "#ffbb22"), 30: ("Grassland", "#ffff4c"),
+                    40: ("Cropland", "#f096ff"), 50: ("Built-up", "#fa0000"), 60: ("Bare / sparse vegetation", "#b4b4b4"),
+                    70: ("Snow and ice", "#f0f0f0"), 80: ("Permanent water bodies", "#0064c8"),
+                    90: ("Herbaceous wetland", "#0096a0"), 95: ("Mangroves", "#00cf75"), 100: ("Moss and lichen", "#fae6a0")}
+
+
+def _worldcover_rgb(src: Path, dst: Path) -> None:
+    """Paint a WorldCover-coded COG in its official colours (RGB, 0 = no data) and save it as a COG."""
+    import numpy as np
+    import rasterio
+    from rio_cogeo.cogeo import cog_translate
+    from rio_cogeo.profiles import cog_profiles
+
+    lut = np.zeros((256, 3), dtype="uint8")
+    for v, (_, hexcol) in WORLDCOVER_STYLE.items():
+        lut[v] = [int(hexcol[i:i + 2], 16) for i in (1, 3, 5)]
+    tmp = dst.with_suffix(".tmp.tif")
+    with rasterio.open(src) as ds:
+        profile = ds.profile.copy()
+        profile.update(count=3, dtype="uint8", nodata=0, compress="deflate", tiled=True, blockxsize=512, blockysize=512)
+        profile.pop("photometric", None)
+        with rasterio.open(tmp, "w", **profile) as out:
+            for _, win in ds.block_windows(1):
+                a = ds.read(1, window=win)
+                out.write(np.moveaxis(lut[np.clip(a, 0, 255)], -1, 0), window=win)
+    cog_translate(str(tmp), str(dst), cog_profiles.get("deflate"), web_optimized=False, quiet=True)
+    tmp.unlink(missing_ok=True)
 
 
 # ---------------- automatic projection for Whitebox jobs ----------------
