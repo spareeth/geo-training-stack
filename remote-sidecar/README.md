@@ -42,17 +42,34 @@ your uploads and results go there, and other participants cannot overwrite them.
 plugin starts a new, empty folder. To get your files back, open **Use an existing folder id**, type
 the old id and click **Use this folder**.
 
-## 3. Bring in your data
-- **Rasters (GeoTIFF):** in the panel, **Upload your data** > choose the file(s) > **Upload to
-  server**. They appear under **Files on the server**. Use **Copy path** to get the path you will
-  type into GeoLibre's tools, e.g. `/data/u-7f3k9q2m1x/dem.tif`.
-- **Vector layers (GeoJSON, shapefile...):** load them into GeoLibre as usual (**Add Data > Vector
-  Layer**) or draw them (**Plugins > GeoEditor**). GeoLibre sends them to the server with each job:
-  no upload needed.
-- **Shared files** listed at the bottom of the panel come from your trainer. You can use them as
-  inputs but not change them.
+## 3. Course data: where it comes from and how to open it
+Your trainer gives you the data in two ways:
 
-Uploading a file with a name you already used asks before replacing it.
+| Data | Where it is | How you open it | How tools use it |
+|---|---|---|---|
+| **Course rasters** (DEM, land cover, imagery...) | Already on the server, under **Shared files** at the bottom of the panel | **Add to map** | **Copy path** and paste it into the tool, e.g. `/data/dem.tif` |
+| **Course vectors** (study area, zones, roads...) | A zip file from your trainer: unzip it on your laptop | **Add Data > Vector Layer**, choose the file (GeoJSON or shapefile) | Pick the layer in the tool's input list: GeoLibre sends it with the job |
+| **Your own rasters** | Your laptop | Upload first (below), then **Add to map** | **Copy path** (your folder, e.g. `/data/u-7f3k9q2m1x/my-dem.tif`) |
+| **Your own vectors** | Your laptop, or draw them (**Plugins > GeoEditor**) | **Add Data > Vector Layer** | Pick the layer in the tool's input list |
+| **Your results** | Your folder on the server | **Refresh**, then **Add to map** (or **Download**) | **Copy path**, to use as the next tool's input |
+
+**Rasters must be on the server to be processed.** A raster you open from your laptop with **Add
+Data > Raster Layer** can be viewed, but the server cannot read it. Use the server copy (Shared files
+or your folder) for analysis. Vectors are different: any vector layer on the map can be used directly.
+
+**Uploading your own rasters:** in the panel, **Upload your data** > choose the GeoTIFF(s) > **Upload
+to server**. They appear under **Files on the server**. Uploading a name you already used asks before
+replacing it. Clip large rasters to your study area first: smaller files upload and process faster.
+
+**Viewing and styling.** **Add to map** opens a server raster as a normal GeoLibre layer (it streams
+only the part you are looking at). Click the layer, or its palette icon in the Layers panel, to open
+GeoLibre's raster settings:
+- **Single band + colormap** with dozens of colour ramps (e.g. *terrain* for elevation, *viridis*),
+  **RGB / composite** for multi-band imagery, or an **Index (normalized difference)** such as NDVI
+- **Band**, **Rescale** (2-98 % or min/max), opacity, and **Inspect** to read pixel values
+
+Styling only changes the display: tools always read the original file through its path. Vector
+results open as normal vector layers: style them as usual and click a feature to see its attributes.
 
 ## 4. Run a Whitebox tool on the server
 Example: slope from a DEM.
@@ -116,12 +133,15 @@ Sizing: Whitebox tools are CPU and memory heavy; 8+ cores and 16-32 GB RAM for a
 
 ## Before each course
 - [ ] Set a new `ACCESS_CODE` in `.env` and run `sudo docker compose up -d`.
-- [ ] Copy shared course data to the top of the server folder (read-only for participants):
-      `sudo docker compose cp mydata.tif files:/data/`
+- [ ] Prepare the data. **Rasters** go on the server as shared files (read-only for participants), so
+      nobody uploads the same large file over the classroom Wi-Fi:
+      `sudo docker compose cp dem.tif files:/data/` (repeat per file; clip to the study area and
+      use GeoTIFF). **Vectors** go in a zip for participants (study area, zones, roads...), preferably
+      as GeoJSON in latitude/longitude (EPSG:4326).
 - [ ] Do the participant setup yourself on a laptop and run sections 4 and 5 once with the course
       data.
-- [ ] Give participants: the server address, the access code, and the link to this guide
-      ("For participants" above).
+- [ ] Give participants: the server address, the access code, the vector zip, and the link to this
+      guide ("For participants" above).
 - [ ] Do not update the plugin during the course (GeoLibre drops an updated plugin until each
       participant re-adds it).
 
