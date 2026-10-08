@@ -19,7 +19,7 @@ server in October 2026; small differences are normal.
 
 ## Data
 
-**Vectors** (in `Moroto_course_data.zip`; open with **Add Data > Vector Layer**):
+**Vectors** (in `Moroto_course_data.zip`, download from https://geolibre.terrawatch.net/downloads/Moroto_course_data.zip; open with **Add Data > Vector Layer**):
 
 | File | Contents |
 |---|---|
