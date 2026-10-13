@@ -66,6 +66,13 @@ school), `pct_oos131` (13–17), `pct_watimp` (improved water), `pct_grid` (grid
 
 ## Part 0: From Uganda to Moroto (selecting by attributes)
 
+**Objective.** Find the subcounties of Uganda where **more than 70% of children aged 6–12 are out of school**, then narrow them down to one district for the programme's first phase.
+
+- **Why:** The out-of-school share is the programme's targeting indicator. Starting from all 2,205 subcounties and narrowing step by step shows how a shortlist is built from evidence, and each step can be explained to others.
+- **How:** Three attribute selections: the subregion (Karamoja, 113 subcounties), the threshold (above 70%: 67 subcounties), and finally one district.
+- **Why Moroto:** Moroto is *not* the district with the most subcounties above 70%: only 2 of its 9 pass (Tapac 89%, Lotisan 80%), against 18 of 19 in Kotido and 17 of 19 in Kaabong. It is chosen as a pilot that can be run and checked. Its two worst subcounties lie close to Moroto town, a regional hub where a programme office can sit. OpenStreetMap has its schools and health facilities mapped (66 schools, 38 facilities), which Parts 1 and 2 need. It mixes town and remote rural subcounties and includes the slopes of Mt Moroto, which Part 3 needs. With 9 subcounties it stays manageable. Lessons from the pilot then go to Kotido and Kaabong.
+- **Outcome:** The 9 Moroto subcounties as the study area for every later part.
+
 **Context.** A (hypothetical) *Karamoja Education and Health Access Programme* must choose one district
 for its first phase. The evidence: the 2024 census at subcounty level.
 
@@ -100,6 +107,12 @@ has 9 subcounties, 103,639 people, Mt Moroto (3,079 m) and the regional town.
 ---
 
 ## Part 1: Who lives far from a school? (Moroto)
+
+**Objective.** Measure, for each Moroto subcounty, **how many people live more than 5 km from the nearest school**, and compare it with the share of children out of school.
+
+- **Why:** If distance explains why children are out of school, new classrooms in the right places will help. If it does not (Lotisan: 80% out of school, yet nobody beyond 5 km), the programme must look at other barriers such as cost, pastoral mobility or child labour.
+- **How:** A distance surface from every school, cells beyond 5 km marked, multiplied by the population of each cell, then summed per subcounty.
+- **Outcome:** A table and map of people beyond 5 km per subcounty, and a first answer to where distance is the problem (Tapac and Rupa).
 
 **Context.** The programme wants to know where new classrooms would bring the most children within
 walking distance (5 km), and whether distance explains the high out-of-school rates.
@@ -144,6 +157,12 @@ from schools *and* 89 % of its children out of school.
 
 ## Part 2: Who lives far from a health centre?
 
+**Objective.** Find who lives **more than 5 km from any health facility**, and then from one that offers **more than basic care (HC III and above)**.
+
+- **Why:** Counting facilities hides differences in what they offer. An HC II provides basic outpatient care; HC III and above add services such as maternity care and a laboratory. A subcounty can look well served and still lack proper care.
+- **How:** The Part 1 chain run twice: once with all facilities, once with only HC III, HC IV and hospitals, selected by attribute.
+- **Outcome:** Two comparable maps. The difference between them shows where upgrading an existing HC II would help most (Katikekile, Loputuk), and confirms Tapac as the worst served.
+
 **Context.** The district health office asks which subcounties lack access to a health centre that
 offers more than basic care (HC III and above).
 
@@ -182,6 +201,12 @@ Katikekile and Loputuk that the "any facility" map hides.
 ---
 
 ## Part 3: Screening a road upgrade, Moroto town – Tapac
+
+**Objective.** Screen the proposed **Moroto–Tapac road upgrade**: what terrain, land cover, people and facilities lie within 1 km of the route.
+
+- **Why:** Parts 1 and 2 show Tapac as the least served subcounty; a better road would connect it to the schools and health centres of Moroto town. Before any design work, an early screening flags engineering risk (steep slopes), environmental and social sensitivities (grazing land, cropland, settlements) and who would benefit.
+- **How:** A 1 km corridor around the road; slope from the elevation model and the share steeper than 15°; the area of each land-cover class; the people and facilities inside the corridor.
+- **Outcome:** A short corridor screening summary of the kind that goes into a project concept note.
 
 **Context.** Tapac is the least served subcounty in Parts 1 and 2. A (hypothetical) *Moroto–Tapac
 Rural Access Road* would upgrade the existing 27 km track. Screening question: what terrain, land
@@ -225,6 +250,12 @@ cover and people does a 1 km corridor on each side cross?
 ---
 
 ## Part 4: Print a result as a map, with the IsDB logo
+
+**Objective.** Turn one result into a **finished map that can go into a report**.
+
+- **Why:** Analysis only informs a decision when others can read it. A map with a clear title, legend, scale bar, data sources and logo is the standard output for reports and appraisal documents, and it is what you hand in for Session 3.
+- **How:** Style the result layer, compose the page in Layout Composer, export it.
+- **Outcome:** A PNG at 300 dpi, plus a saved layout you can reuse for the other maps.
 
 **Goal.** Turn the Part 1 result into a report map: out-of-school children and schools in Moroto,
 designed in the **Layout Composer** plugin.

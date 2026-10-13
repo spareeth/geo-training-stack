@@ -155,6 +155,13 @@ figure { margin: 14px 0 6px; }
 figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 figure.narrow img { max-width: 340px; }
 figcaption { font-size: 14px; color: var(--muted); margin-top: 6px; max-width: 68ch; }
+.objective { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 16px 18px; margin: 18px 0 8px; }
+.objective > .k { font: 700 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 8px; }
+.objective > p { margin: 0 0 10px; font-size: 18px; max-width: 70ch; }
+.objective dl { display: grid; grid-template-columns: minmax(90px, max-content) minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 16px; }
+.objective dt { font-weight: 700; color: var(--fg); }
+.objective dd { margin: 0; max-width: 68ch; }
+@media (max-width: 560px) { .objective dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .objective dd { margin-bottom: 8px; } }
 footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
 footer p { max-width: none; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
@@ -286,6 +293,7 @@ html { scroll-behavior: smooth; }
       <div class="part-head"><span class="part-tag">PART 0</span><h2>From Uganda to Moroto</h2></div>
       <p class="question">Where in Uganda should an education and health access programme start? Selecting by attributes.</p>
       <div class="context"><span class="k">Context</span><p>A (hypothetical) <em>Karamoja Education and Health Access Programme</em> must choose one district for its first phase. The evidence is the 2024 census at subcounty level.</p></div>
+      <div class="objective"><span class="k">Objective</span><p>Find the subcounties of Uganda where <strong>more than 70% of children aged 6–12 are out of school</strong>, then narrow them down to one district for the programme's first phase.</p><dl><dt>Why</dt><dd>The out-of-school share is the programme's targeting indicator. Starting from all 2,205 subcounties and narrowing step by step shows how a shortlist is built from evidence, and each step can be explained to others.</dd><dt>How</dt><dd>Three attribute selections: the subregion (Karamoja, 113 subcounties), the threshold (above 70%: 67 subcounties), and finally one district.</dd><dt>Why Moroto</dt><dd>Moroto is <em>not</em> the district with the most subcounties above 70%: only 2 of its 9 pass (Tapac 89%, Lotisan 80%), against 18 of 19 in Kotido and 17 of 19 in Kaabong. It is chosen as a pilot that can be run and checked. Its two worst subcounties lie close to Moroto town, a regional hub where a programme office can sit. OpenStreetMap has its schools and health facilities mapped (66 schools, 38 facilities), which Parts 1 and 2 need. It mixes town and remote rural subcounties and includes the slopes of Mt Moroto, which Part 3 needs. With 9 subcounties it stays manageable. Lessons from the pilot then go to Kotido and Kaabong.</dd><dt>Outcome</dt><dd>The 9 Moroto subcounties as the study area for every later part.</dd></dl></div>
 
       <ol class="steps">
         <li>
@@ -368,6 +376,7 @@ html { scroll-behavior: smooth; }
       <div class="part-head"><span class="part-tag">PART 1</span><h2>Who lives far from a school?</h2></div>
       <p class="question">How many people in each Moroto subcounty live more than 5 km from a school, and does distance line up with out-of-school rates?</p>
       <div class="context"><span class="k">Context</span><p>The programme wants to know where new classrooms would bring the most children within walking distance (5 km).</p></div>
+      <div class="objective"><span class="k">Objective</span><p>Measure, for each Moroto subcounty, <strong>how many people live more than 5 km from the nearest school</strong>, and compare it with the share of children out of school.</p><dl><dt>Why</dt><dd>If distance explains why children are out of school, new classrooms in the right places will help. If it does not (Lotisan: 80% out of school, yet nobody beyond 5 km), the programme must look at other barriers such as cost, pastoral mobility or child labour.</dd><dt>How</dt><dd>A distance surface from every school, cells beyond 5 km marked, multiplied by the population of each cell, then summed per subcounty.</dd><dt>Outcome</dt><dd>A table and map of people beyond 5 km per subcounty, and a first answer to where distance is the problem (Tapac and Rupa).</dd></dl></div>
       <div class="flow" aria-label="Processing chain">
         <span>Schools (points)</span><i>→</i><span>Vector Points To Raster</span><i>→</i><span>Euclidean Distance</span><i>→</i><span>Reclass &gt; 5 km</span><i>→</i><span>Multiply × population</span><i>→</i><span>Zonal statistics per subcounty</span>
       </div>
@@ -475,6 +484,7 @@ html { scroll-behavior: smooth; }
       <div class="part-head"><span class="part-tag">PART 2</span><h2>Who lives far from a health centre?</h2></div>
       <p class="question">Which subcounties lack access to a health centre that offers more than basic care (HC III and above)?</p>
       <div class="context"><span class="k">Context</span><p>The district health office plans outreach and new health centres. Uganda's facility levels run from HC II (basic) through HC III and HC IV to hospitals.</p></div>
+      <div class="objective"><span class="k">Objective</span><p>Find who lives <strong>more than 5 km from any health facility</strong>, and then from one that offers <strong>more than basic care (HC III and above)</strong>.</p><dl><dt>Why</dt><dd>Counting facilities hides differences in what they offer. An HC II provides basic outpatient care; HC III and above add services such as maternity care and a laboratory. A subcounty can look well served and still lack proper care.</dd><dt>How</dt><dd>The Part 1 chain run twice: once with all facilities, once with only HC III, HC IV and hospitals, selected by attribute.</dd><dt>Outcome</dt><dd>Two comparable maps. The difference between them shows where upgrading an existing HC II would help most (Katikekile, Loputuk), and confirms Tapac as the worst served.</dd></dl></div>
 
       <ol class="steps">
         <li>
@@ -538,6 +548,7 @@ html { scroll-behavior: smooth; }
       <div class="part-head"><span class="part-tag">PART 3</span><h2>Screening a road upgrade: Moroto town to Tapac</h2></div>
       <p class="question">What terrain, land cover and people does a corridor of 1 km on each side of the road cross?</p>
       <div class="context"><span class="k">Context</span><p>Tapac is the least served subcounty in Parts 1 and 2. A (hypothetical) <em>Moroto–Tapac Rural Access Road</em> would upgrade the existing 27 km track, which runs along the foothills of Mt Moroto.</p></div>
+      <div class="objective"><span class="k">Objective</span><p>Screen the proposed <strong>Moroto–Tapac road upgrade</strong>: what terrain, land cover, people and facilities lie within 1 km of the route.</p><dl><dt>Why</dt><dd>Parts 1 and 2 show Tapac as the least served subcounty; a better road would connect it to the schools and health centres of Moroto town. Before any design work, an early screening flags engineering risk (steep slopes), environmental and social sensitivities (grazing land, cropland, settlements) and who would benefit.</dd><dt>How</dt><dd>A 1 km corridor around the road; slope from the elevation model and the share steeper than 15°; the area of each land-cover class; the people and facilities inside the corridor.</dd><dt>Outcome</dt><dd>A short corridor screening summary of the kind that goes into a project concept note.</dd></dl></div>
       <div class="flow" aria-label="Processing chain">
         <span>Road line</span><i>→</i><span>Buffer 1 km</span><i>→</i><span>Slope, Reclass &gt; 15°</span><i>→</i><span>Zonal statistics: class areas and summary</span><i>→</i><span>Select by Location</span>
       </div>
@@ -654,6 +665,7 @@ html { scroll-behavior: smooth; }
     <section class="part" id="part4">
       <div class="part-head"><span class="part-tag">PART 4</span><h2>Print a result as a map, with the IsDB logo</h2></div>
       <p class="question">Turn the Part 1 result into a map you can put in a report: out-of-school children and distance to school in Moroto. You design the page in the <strong>Layout Composer</strong> plugin.</p>
+      <div class="objective"><span class="k">Objective</span><p>Turn one result into a <strong>finished map that can go into a report</strong>.</p><dl><dt>Why</dt><dd>Analysis only informs a decision when others can read it. A map with a clear title, legend, scale bar, data sources and logo is the standard output for reports and appraisal documents, and it is what you hand in for Session 3.</dd><dt>How</dt><dd>Style the result layer, compose the page in Layout Composer, export it.</dd><dt>Outcome</dt><dd>A PNG at 300 dpi, plus a saved layout you can reuse for the other maps.</dd></dl></div>
 
       <ol class="steps">
         <li>
