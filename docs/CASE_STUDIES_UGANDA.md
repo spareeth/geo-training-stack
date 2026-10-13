@@ -15,7 +15,7 @@ server in October 2026; small differences are normal.
 | 1 | Who lives far from a school in Moroto? | Vector Points To Raster, Euclidean Distance, Reclass, Multiply, Zonal statistics |
 | 2 | Who lives far from a health centre (and from a proper one)? | Same chain, with an attribute filter on facility level |
 | 3 | What would a Moroto–Tapac road upgrade cross? | Buffer, Slope, Reclass, Zonal statistics (summary and class areas), Select by Location |
-| 4 | How do I share a result as a map? | Style, Print Layout, plugin's Logo on a printed map |
+| 4 | How do I share a result as a map? | Style, Layout Composer plugin |
 
 ## Data
 
@@ -108,7 +108,7 @@ walking distance (5 km), and whether distance explains the high out-of-school ra
 1. **Add Data > Vector Layer**: `moroto_schools_osm.geojson` and `moroto_subcounties_census2024.geojson`.
 2. **Vector Points To Raster**: Input = the schools layer; **Base** = Path
    `/data/moroto_population_2024_100m.tif`; tick **Zero background**; Output `school_r`.
-   (Burns the schools onto the population grid.)
+   (Converts the school points to a raster on the same 100 m grid as the population.)
 3. **Euclidean Distance**: Input = Path to `school_r.tif` (Copy path); Output `dist_school`.
    Distance in metres to the nearest school, for every 100 m cell.
 4. **Reclass**: Input `dist_school.tif`; **Reclass values** `0;0;5000;1;5000;1000000`; Output
@@ -226,29 +226,34 @@ cover and people does a 1 km corridor on each side cross?
 
 ## Part 4: Print a result as a map, with the IsDB logo
 
-**Goal.** Turn the Part 1 result into a report map: out-of-school children and schools in Moroto.
+**Goal.** Turn the Part 1 result into a report map: out-of-school children and schools in Moroto,
+designed in the **Layout Composer** plugin.
 
 **Steps**
-1. Keep on the map the Part 1 zonal statistics layer, the schools, `uganda_districts` and a light
-   basemap; hide the rest.
-2. Select the zonal layer, **Style** tab: **Graduated** on `pct_oos612`, 5 classes, yellow-to-red,
-   fill opacity ~0.8. Schools: small dark circles; districts: thin grey outline, no fill. Rename
-   layers (**⋯ > Rename**) so the legend reads well.
-3. Zoom to Moroto district, north up.
-4. **Project > Print Layout...**: Title *Moroto district: children out of school and distance to
-   school*; Subtitle *Share of children aged 6–12 out of school, by subcounty (NPHC 2024)*; A4
-   Landscape; tick Legend, Scale bar, North arrow, Date, Footer text (*Data: UBOS NPHC 2024;
-   OpenStreetMap contributors; WorldPop 2024. GEIDA training, IsDB.*). **Recapture map** if needed.
-5. **Export PNG**.
-6. Plugin **Data > Logo on a printed map**: choose the exported PNG, leave Logo empty (IsDB logo),
-   corner Bottom right, width 16 %, **Add logo and download**. You get `…-logo.png`.
+1. **Install Layout Composer** (once): **Settings > Manage Plugins**, find *Layout Composer*, **Install**;
+   then **Plugins > Installed > Layout Composer**. A **Layout** menu appears in the top bar.
+2. **Logo file:** `isdb-logo.png` is in the course zip, or download it from
+   https://geolibre.terrawatch.net/downloads/isdb-logo.png.
+3. **Prepare the map:** keep the Part 1 zonal statistics layer, the schools and `uganda_districts`;
+   hide the rest. **Style** tab: **Graduated** on `pct_oos612`, 5 classes, yellow to red. Schools:
+   small dark circles; districts: thin grey outline, no fill. Rename layers (**⋯ > Rename**) so the
+   legend reads well. Zoom to Moroto district.
+4. **Layout > Open Layout Composer** (A4 landscape by default; **Page** tab to change). **Add map frame**,
+   then on the **Item** tab **Match GeoLibre view** (or **Zoom to layer…**). Size the frame, leaving
+   room on the right. Rasters from the server are not redrawn in the frame: set **Content** to
+   **Capture** for those.
+5. **Text > Heading**, double-click and type *Moroto district: children out of school and distance to
+   school*. **Add legend** (set its title, remove entries you do not need), **Add north arrow**,
+   **Scale bar > Single box**, and **Text > Caption** with *Data: UBOS NPHC 2024; OpenStreetMap
+   contributors; WorldPop 2024. GEIDA training, IsDB.* Drag items into place, or set X, Y, W, H on the
+   **Arrange** tab.
+6. **Image**, then **Choose image…** and pick `isdb-logo.png`; keep *Contain (keep ratio)* and drag it to
+   a free corner.
+7. **Export** (download icon): PNG at 300 dpi (or PDF), file name e.g. `Surname_Map1_schools`. Save the
+   layout (`.json`, save icon) to reuse the design for Maps 2 and 3.
 
-For a land-cover map, click **Copy for print legend** in the map legend box, then in Print Layout tick
-**Custom legend** > **Import from dictionary** and paste.
-
-GeoLibre's Print Layout has no image element yet. **Controls > Image** (URL
-`https://geolibre.terrawatch.net/plugin/assets/isdb-logo.png`) shows a logo on the screen map, but
-the print layout leaves it out, hence step 6.
+For a land-cover map, add the classes with **+ Add manual entry…** in the legend's Item tab; the class
+colours are in the plugin's map legend box.
 
 **Discuss**
 - Which map tells the story better: out-of-school share or people beyond 5 km?
@@ -262,7 +267,7 @@ the print layout leaves it out, hence step 6.
 - **Run locally (WASM)** must be unticked in every Whitebox dialog; this is the most common mistake.
 - **Reclass values** use the classic Whitebox format `new;from;to;new;from;to...` (semicolons). Whitebox
   comparison tools (Greater Than, Equal To...) need two rasters, so Reclass is the way to threshold.
-- **Plugin version:** class areas and the logo tool need Remote Processing 0.5.0 or later (map legend). Anyone who
+- **Plugin version:** class areas and the logo tool need Remote Processing 0.5.0 or later (map legend). Part 4 needs the Layout Composer plugin. Anyone who
   installed earlier must remove the plugin URL and add it again.
 - **Buffers of real roads:** use GeoLibre's own Buffer (step 3.2). Whitebox *Buffer Vector* returns
   wrong corridors for long, winding lines (fine for polygons and simple lines).
